@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fantasy Colegas - App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+      .btn-activo { background-color: #1e40af; border-bottom: 4px solid #60a5fa; }
+      .bg-cesped { background-color: #15803d; background-image: repeating-linear-gradient(0deg, transparent, transparent 19px, #166534 20px); }
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+  </head>
+  <body class="bg-gray-100 min-h-screen font-sans">
+    
+    <nav class="bg-gray-900 text-white shadow-lg sticky top-0 z-50">
+      <div class="max-w-6xl mx-auto px-4">
+        <div class="flex justify-between items-center h-16">
+          <div class="flex items-center gap-2">
+            <span class="text-2xl">⚽</span>
+            <span class="font-bold text-xl tracking-tight">Exorcistas</span>
+          </div>
+          <div class="hidden md:flex space-x-1 h-full">
+            <button onclick="cambiarPestaña('plantilla')" id="tab-plantilla" class="px-4 hover:bg-gray-800 h-full flex items-center transition">👕 Mi Plantilla</button>
+            <button onclick="cambiarPestaña('mercado')" id="tab-mercado" class="px-4 hover:bg-gray-800 h-full flex items-center transition">💰 Mercado</button>
+            <button onclick="cambiarPestaña('clasificacion')" id="tab-clasificacion" class="px-4 hover:bg-gray-800 h-full flex items-center transition btn-activo">🏆 Clasificación</button>
+            <button onclick="cambiarPestaña('calendario')" id="tab-calendario" class="px-4 hover:bg-gray-800 h-full flex items-center transition">📅 Liga</button>
+          </div>
+          <div class="flex items-center gap-4">
+            <button id="btn-admin-puntos" onclick="abrirGestorPuntos()" class="hidden text-sm bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-3 py-1 rounded transition shadow-lg border border-yellow-600 flex items-center gap-1">⚽ Árbitro</button>
+            <span id="user-email" class="text-xs text-gray-400 hidden sm:block">...</span>
+            <button onclick="logout()" class="text-sm bg-red-600 hover:bg-red-700 px-3 py-1 rounded transition">Salir</button>
+          </div>
+        </div>
+      </div>
+      <div class="md:hidden flex justify-around bg-gray-800 p-2 text-sm overflow-x-auto">
+        <button onclick="cambiarPestaña('plantilla')">👕 Plantilla</button>
+        <button onclick="cambiarPestaña('mercado')">💰 Mercado</button>
+        <button onclick="cambiarPestaña('clasificacion')">🏆 Tabla</button>
+        <button onclick="cambiarPestaña('calendario')">📅 Liga</button>
+      </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto p-4 md:p-6">
+      
+      <div id="seccion-calendario" class="bloque-contenido hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">📅 Calendario Oficial</h2>
+            <button id="btn-crear-partido" onclick="document.getElementById('admin-calendario').classList.toggle('hidden')" class="hidden bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold">➕ Añadir Partido</button>
+        </div>
+        <div id="admin-calendario" class="hidden bg-blue-50 p-4 rounded-lg mb-6 border border-blue-200">
+            <h3 class="font-bold text-blue-800 mb-2 text-sm uppercase">Programar Encuentro</h3>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-2">
+                <input type="number" id="cal-jornada" placeholder="Jornada (Nº)" class="border p-2 rounded">
+                <input type="datetime-local" id="cal-fecha" class="border p-2 rounded text-sm">
+                <input type="text" id="cal-local" placeholder="Equipo Local" class="border p-2 rounded">
+                <input type="text" id="cal-visitante" placeholder="Equipo Visitante" class="border p-2 rounded">
+                <button onclick="crearPartido()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded">Guardar</button>
+            </div>
+        </div>
+        <div id="lista-partidos" class="space-y-8"><p class="text-center text-gray-500">Cargando calendario...</p></div>
+      </div>
+
+      <div id="seccion-clasificacion" class="bloque-contenido">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800 border-b pb-2">🏆 Tabla de Puntos</h2>
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+          <table class="w-full text-left">
+            <thead class="bg-gray-200 text-gray-700 uppercase text-sm"><tr><th class="p-4">Pos</th><th class="p-4">Equipo</th><th class="p-4 text-right">Presupuesto</th><th class="p-4 text-right">Puntos</th></tr></thead>
+            <tbody id="tabla-ranking"><tr><td colspan="4" class="p-4 text-center">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="seccion-plantilla" class="bloque-contenido hidden">
+        <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold text-gray-800">📋 Pizarra Táctica</h2><div class="text-right"><p class="text-xs text-gray-500">Valor Equipo</p><p id="valor-plantilla" class="font-bold text-green-600 text-lg">0 M€</p></div></div>
+        <div id="buzon-ofertas" class="mb-6 hidden"><div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded shadow-sm"><div class="flex items-center mb-3"><span class="text-2xl mr-2">📬</span><h3 class="text-lg font-bold text-yellow-800">Ofertas Recibidas</h3></div><div id="lista-ofertas" class="space-y-3"></div></div></div>
+        <div class="mb-8 relative"><h3 class="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">3 Inicial (1-1-1-1)</h3><div class="bg-cesped rounded-xl border-4 border-green-800 p-6 shadow-2xl flex flex-col items-center gap-6 relative overflow-hidden min-h-[400px]"><div class="absolute top-1/2 left-0 w-full h-0.5 bg-white opacity-30"></div><div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-white opacity-30 rounded-full"></div><div id="campo-titulares" class="w-full max-w-md flex flex-col gap-4 z-10"></div></div></div>
+        <div><h3 class="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">Banquillo</h3><div id="grid-suplentes" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-80"></div></div>
+      </div>
+
+      <div id="seccion-mercado" class="bloque-contenido hidden">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 sticky top-16 bg-gray-100 z-40 py-4 gap-4">
+            <div><h2 class="text-2xl font-bold text-gray-800">💰 Subastas</h2><p class="text-xs text-gray-500">Puja o paga cláusula.</p></div>
+            <div class="flex gap-2 items-center flex-wrap justify-end">
+                <button id="btn-admin-precios" onclick="actualizarPreciosSemana()" class="hidden bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded shadow border border-blue-800 flex items-center gap-1">🔄 Precios</button>
+                <button id="btn-admin-fichajes" onclick="resolverMercado()" class="hidden bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-2 rounded shadow border border-purple-800 flex items-center gap-1">⚡ Fichajes</button>
+                <div class="text-right bg-white px-4 py-2 rounded-lg shadow border border-green-200 ml-2"><p class="text-xs text-gray-500 font-bold">Tu Saldo</p><p id="mercado-presupuesto" class="font-mono font-bold text-green-600 text-xl">...</p></div>
+            </div>
+        </div>
+        <div id="grid-mercado" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"><p class="text-center text-gray-500 col-span-3 animate-pulse">Analizando mercado...</p></div>
+      </div>
+    </main>
+
+    <div id="modal-partido" class="fixed inset-0 bg-black bg-opacity-90 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden relative">
+            <div class="bg-gray-900 p-6 text-center relative text-white">
+                <button onclick="cerrarModal('modal-partido')" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">✕</button>
+                <p id="popup-jornada" class="text-xs uppercase tracking-widest text-gray-400 mb-2">Jornada X</p>
+                <p id="popup-fecha" class="text-sm font-bold text-yellow-400 mb-4">--:--</p>
+                <div class="flex justify-between items-center px-4">
+                    <div class="text-center w-1/3"><div class="w-12 h-12 bg-white rounded-full mx-auto flex items-center justify-center text-gray-900 font-black text-xl mb-2 shadow-lg border-2 border-gray-300">⚪</div><p id="popup-local" class="font-bold text-lg leading-tight">Local</p></div>
+                    <div class="text-center w-1/3"><p id="popup-marcador" class="text-4xl font-black font-mono">VS</p></div>
+                    <div class="text-center w-1/3"><div class="w-12 h-12 bg-black rounded-full mx-auto flex items-center justify-center text-white font-black text-xl mb-2 shadow-lg border-2 border-gray-600">⚫</div><p id="popup-visitante" class="font-bold text-lg leading-tight">Visitante</p></div>
+                </div>
+            </div>
+            <div id="admin-partido-controls" class="hidden p-6 bg-gray-50 border-t">
+                <p class="text-xs font-bold text-gray-500 uppercase mb-2 text-center">Editar Marcador (Admin)</p>
+                <div class="flex justify-center gap-4 mb-4">
+                    <input type="number" id="edit-goles-local" class="w-16 p-2 text-center border rounded text-xl font-bold" placeholder="0">
+                    <span class="text-xl font-bold pt-2">-</span>
+                    <input type="number" id="edit-goles-visitante" class="w-16 p-2 text-center border rounded text-xl font-bold" placeholder="0">
+                </div>
+                <button onclick="guardarResultadoPartido()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded shadow">Actualizar Resultado</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-jugador" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform transition-all scale-100">
+            <div class="bg-gray-900 p-6 text-center relative">
+                <button onclick="cerrarModal('modal-jugador')" class="absolute top-4 right-4 text-gray-400 hover:text-white text-xl">✕</button>
+                <div class="w-24 h-24 mx-auto rounded-full border-4 border-white overflow-hidden shadow-lg mb-3">
+                    <img id="modal-foto" src="" class="w-full h-full object-cover">
+                </div>
+                <h3 id="modal-nombre" class="text-xl font-bold text-white">Nombre Jugador</h3>
+                <p id="modal-posicion" class="text-sm text-blue-300 font-bold tracking-wider uppercase">Posición</p>
+            </div>
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-6 bg-gray-50 p-3 rounded border">
+                    <span class="text-gray-500 text-sm">Valor de Mercado</span>
+                    <span id="modal-precio" class="font-mono font-bold text-green-600 text-lg">0 M€</span>
+                </div>
+                <div class="flex justify-between items-center mb-6">
+                     <span class="text-gray-500 text-sm">Estado actual:</span>
+                     <span id="modal-estado" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-200">...</span>
+                </div>
+                <div class="space-y-3 pt-2 border-t">
+                    <button id="btn-titular" onclick="" class="w-full py-3 rounded-lg font-bold text-white transition shadow-md">Cambiar Estado</button>
+                    <button id="btn-vender" onclick="" class="w-full py-3 rounded-lg font-bold text-red-600 border border-red-200 hover:bg-red-50 transition">💰 Vender Jugador</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-equipo" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4"><div class="bg-white rounded-xl w-full max-w-md max-h-[80vh] flex flex-col"><div class="bg-blue-900 p-4 flex justify-between text-white"><h3 id="modal-equipo-nombre" class="font-bold"></h3><button onclick="cerrarModal('modal-equipo')">✕</button></div><div id="modal-equipo-lista" class="p-4 overflow-y-auto"></div></div></div>
+    <div id="modal-compra-rival" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4"><div class="bg-white rounded-xl w-full max-w-sm p-6 text-center"><h3 class="font-bold text-lg mb-2">Oferta</h3><p id="rival-nombre-jugador" class="text-blue-600 font-bold mb-4"></p><div class="bg-gray-100 p-2 rounded mb-4 text-left text-sm"><div class="flex justify-between"><span>Valor:</span><span id="rival-precio-valor" class="font-bold"></span></div><div class="flex justify-between text-red-600 font-bold"><span>Cláusula:</span><span id="rival-precio-clausula"></span></div></div><input type="number" id="input-oferta-rival" class="w-full border p-2 rounded mb-4 text-center font-bold" placeholder="€"><div class="flex gap-2"><button onclick="cerrarModal('modal-compra-rival')" class="flex-1 bg-gray-300 py-2 rounded font-bold">Cancelar</button><button id="btn-confirmar-compra-rival" class="flex-1 bg-green-600 text-white py-2 rounded font-bold">Enviar</button></div></div></div>
+    
+    <div id="modal-puntos" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4"><div class="bg-white rounded-xl w-full max-w-sm p-6"><div class="flex justify-between mb-4"><h3 class="font-bold">Acta</h3><button onclick="cerrarModal('modal-puntos')">✕</button></div><label class="text-xs font-bold block mb-1">Jugador</label><select id="select-jugador-puntos" onchange="calcularPuntosEnVivo()" class="w-full border p-2 rounded mb-4 bg-gray-50"></select><div class="grid grid-cols-3 gap-2 mb-4"><div><label class="text-[10px] font-bold text-green-700">Goles</label><input type="number" id="stats-goles" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center"></div><div><label class="text-[10px] font-bold text-blue-700">Asist</label><input type="number" id="stats-asist" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center"></div><div><label class="text-[10px] font-bold text-purple-700">Paradas</label><input type="number" id="stats-paradas" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center"></div><div><label class="text-[10px] font-bold text-yellow-600">Amar</label><input type="number" id="stats-ama" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center"></div><div><label class="text-[10px] font-bold text-red-600">Roja</label><input type="number" id="stats-roja" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center"></div></div><div class="bg-gray-100 p-2 rounded mb-4 flex justify-between items-center"><span id="info-bonus-posicion" class="text-xs">...</span><span id="puntos-preview" class="text-2xl font-black text-blue-600">2</span></div><button onclick="guardarPuntos()" class="w-full bg-green-600 text-white font-bold py-2 rounded shadow">Guardar</button></div></div>
+
+    <script>
+      // --- 1. CONFIGURACIÓN E INICIALIZACIÓN ---
+      const supabaseUrl = "https://jruomktwaehlocyrivsx.supabase.co";
+      const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpydW9ta3R3YWVobG9jeXJpdnN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MTc0NTAsImV4cCI6MjA4MTE5MzQ1MH0.CDhHO5jFLNrIaf-yffEcGViaDN01L4sqwRFpFtnIBCg"; 
+      const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+      const EMAIL_ADMIN = "m.liang.perarnau@gmail.com"; 
+      
+      let partidoActualId = null;
+      let jugadorActualId = null;
+      let esTitularActual = false;
+
+      // --- 2. FUNCIONES DE UTILIDAD (Deben estar antes de usarse) ---
+      function generarBadgePrecio(actual, anterior) {
+          if (!anterior || anterior === 0) return '<span class="text-[10px] text-gray-400 ml-1">=</span>';
+          const diff = actual - anterior;
+          if (diff === 0) return '<span class="text-[10px] text-gray-400 ml-1">=</span>';
+          const porc = ((Math.abs(diff) / anterior) * 100).toFixed(1);
+          if (diff > 0) return `<span class="text-[10px] font-bold text-green-600 bg-green-100 px-1 rounded ml-1">⬆️ ${porc}%</span>`;
+          return `<span class="text-[10px] font-bold text-red-600 bg-red-100 px-1 rounded ml-1">⬇️ ${porc}%</span>`;
+      }
+
+      function getColorBorde(pos) {
+        if (pos === "PORTERO") return "border-yellow-400";
+        if (pos === "DEFENSA") return "border-blue-400";
+        if (pos === "MEDIO") return "border-green-400";
+        if (pos === "DELANTERO") return "border-red-400";
+        return "border-gray-300";
+      }
+
+      function ordenPos(p) { return {'PORTERO':1,'DEFENSA':2,'MEDIO':3,'DELANTERO':4}[p] || 99; }
+      function cerrarModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+      // --- 3. NAVEGACIÓN ---
+      function cambiarPestaña(n) {
+        ['clasificacion','plantilla','mercado','calendario'].forEach(t => {
+            document.getElementById('seccion-'+t).classList.add('hidden');
+            const btn = document.getElementById('tab-'+t); if(btn) btn.classList.remove('btn-activo');
+        });
+        document.getElementById("seccion-" + n).classList.remove("hidden");
+        document.getElementById("tab-" + n)?.classList.add("btn-activo");
+        if(n==='plantilla') cargarPlantilla();
+        if(n==='mercado') cargarMercado();
+        if(n==='calendario') cargarCalendario();
+      }
+
+      // --- 4. AUTH Y RANKING ---
+      async function checkSession() {
+        const { data: { session } } = await _supabase.auth.getSession();
+        if (!session) window.location.href = "index.html";
+        else {
+          document.getElementById("user-email").innerText = session.user.email;
+          if(session.user.email === EMAIL_ADMIN) {
+            ['btn-admin-puntos','btn-admin-precios','btn-admin-fichajes','btn-crear-partido','admin-partido-controls'].forEach(id => {
+                const el = document.getElementById(id); if(el) el.classList.remove('hidden');
+            });
+          }
+          cargarRanking();
+        }
+      }
+      checkSession();
+
+      // --- 5. MERCADO ---
+      async function cargarMercado() {
+        const grid = document.getElementById('grid-mercado'); 
+        grid.innerHTML = '<p class="text-center col-span-3 animate-pulse">Cargando...</p>';
+        const { data: { user } } = await _supabase.auth.getUser();
+        const { data: eq } = await _supabase.from('equipos_fantasy').select('id, presupuesto').eq('usuario_id', user.id).single();
+        if(!eq) { grid.innerHTML = '<p class="text-center text-red-500 col-span-3">Crea equipo primero.</p>'; return; }
+        document.getElementById('mercado-presupuesto').innerText = (eq.presupuesto/1000000).toFixed(1) + ' M€';
+
+        const { data: oc } = await _supabase.from('plantilla').select('jugador_id');
+        const ocupados = oc ? oc.map(x => x.jugador_id) : [];
+        const { data: p } = await _supabase.from('pujas').select('jugador_id, monto, equipo_id');
+        const pujas = {}; if(p) p.forEach(x => { if(!pujas[x.jugador_id]) pujas[x.jugador_id]={max:0,mi:0}; if(x.monto>pujas[x.jugador_id].max) pujas[x.jugador_id].max=x.monto; if(x.equipo_id===eq.id) pujas[x.jugador_id].mi=x.monto; });
+        const { data: acts } = await _supabase.from('actuaciones').select('jugador_id, puntos_calculados');
+        const pts = {}; if(acts) acts.forEach(a => { if(!pts[a.jugador_id]) pts[a.jugador_id]=0; pts[a.jugador_id]+=a.puntos_calculados; });
+        
+        const { data: all, error } = await _supabase.from('jugadores').select('*').order('precio', { ascending: false });
+        if(error || !all || !all.length) { grid.innerHTML = '<p class="text-center col-span-3 text-red-500">Base de datos vacía.</p>'; return; }
+        
+        const libres = all.filter(j => !ocupados.includes(j.id));
+        grid.innerHTML = '';
+        if(!libres.length) { grid.innerHTML = '<p class="text-center col-span-3">Mercado vacío.</p>'; return; }
+
+        libres.forEach(j => {
+            const inf = pujas[j.id] || {max:0,mi:0};
+            grid.innerHTML += `
+            <div class="bg-white rounded-lg shadow-md p-4 border-l-4 ${getColorBorde(j.posicion)} ${inf.mi>0?'ring-2 ring-purple-500':''} flex flex-col gap-3">
+                <div class="flex gap-3"><div class="w-14 h-14 rounded-full bg-gray-200 overflow-hidden"><img src="${j.foto_url}" class="w-full h-full object-cover"></div><div class="w-full"><div class="flex justify-between"><div><p class="text-[10px] font-bold text-gray-400">${j.posicion}</p><div class="flex items-center"><h3 class="font-bold text-sm">${j.nombre}</h3>${generarBadgePrecio(j.precio, j.precio_anterior)}</div></div><div class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold">🎯 ${pts[j.id]||0}</div></div><div class="grid grid-cols-2 gap-2 mt-2 text-xs bg-gray-50 p-2 rounded"><div><p class="text-gray-400">Valor</p><p class="font-bold">${(j.precio/1000000).toFixed(1)} M€</p></div><div><p class="text-orange-500 font-bold">🔥 Max</p><p class="font-bold">${inf.max>0?(inf.max/1000000).toFixed(1)+'M':'-'}</p></div></div><p class="text-[10px] text-red-500 font-bold mt-1 text-right">⚡ ${(j.precio*1.5/1000000).toFixed(1)} M€</p></div></div>
+                <div class="flex gap-2 border-t pt-2"><input type="number" id="inp-${j.id}" class="w-full text-sm border rounded px-1" value="${j.precio}"><button onclick="realizarPuja(${j.id}, '${j.nombre.replace(/'/g,"\\'")}', ${j.precio})" class="bg-purple-600 text-white text-xs font-bold px-3 rounded">Pujar</button></div>
+            </div>`;
+        });
+      }
+
+      async function realizarPuja(id, n, v) {
+          const m = parseInt(document.getElementById(`inp-${id}`).value);
+          const { data: { user } } = await _supabase.auth.getUser();
+          const { data: eq } = await _supabase.from('equipos_fantasy').select('id, presupuesto').eq('usuario_id', user.id).single();
+          if(eq.presupuesto < m) return alert("Sin fondos.");
+          if(m >= v*1.5) { 
+              if(!confirm("¿Clausulazo?")) return;
+              await _supabase.from('equipos_fantasy').update({ presupuesto: eq.presupuesto-m }).eq('id',eq.id);
+              await _supabase.from('plantilla').insert({ equipo_id: eq.id, jugador_id: id, es_titular: false });
+              await _supabase.from('pujas').delete().eq('jugador_id', id);
+              alert("Fichado!"); cargarMercado(); return;
+          }
+          await _supabase.from('pujas').delete().eq('equipo_id', eq.id).eq('jugador_id', id);
+          await _supabase.from('pujas').insert({ equipo_id: eq.id, jugador_id: id, monto: m });
+          alert("Puja OK"); cargarMercado();
+      }
+
+      // --- 6. CALENDARIO ---
+      async function cargarCalendario() {
+          const lista = document.getElementById('lista-partidos');
+          lista.innerHTML = '<p class="text-center text-gray-500">Cargando...</p>';
+          const { data: partidos } = await _supabase.from('partidos').select('*').order('jornada').order('fecha');
+          if(!partidos || partidos.length === 0) { lista.innerHTML = '<p class="text-center text-gray-400">No hay partidos programados.</p>'; return; }
+          const porJornada = {}; partidos.forEach(p => { if(!porJornada[p.jornada]) porJornada[p.jornada] = []; porJornada[p.jornada].push(p); });
+          lista.innerHTML = '';
+          Object.keys(porJornada).forEach(j => {
+              let html = `<div class="mb-8"><h3 class="font-bold text-lg text-gray-800 border-b-2 border-gray-200 mb-4 pb-1">Jornada ${j}</h3><div class="grid gap-4 md:grid-cols-2">`;
+              porJornada[j].forEach(p => {
+                  const d = new Date(p.fecha);
+                  const dia = d.toLocaleDateString('es-ES', { weekday:'short', day:'numeric' });
+                  const hora = d.toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+                  const est = p.jugado ? `<span class="text-xl font-bold text-gray-800">${p.goles_local} - ${p.goles_visitante}</span>` : `<span class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded">${dia} ${hora}</span>`;
+                  html += `<div onclick="abrirPopUpPartido(${p.id}, '${p.equipo_local}', '${p.equipo_visitante}', ${p.goles_local}, ${p.goles_visitante}, ${p.jugado}, '${dia} ${hora}', ${p.jornada})" class="bg-white p-4 rounded-xl shadow hover:shadow-lg transition cursor-pointer border border-gray-100 flex items-center justify-between"><div class="flex items-center gap-3 w-5/12"><div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 border">⚪</div><span class="font-bold text-gray-700 truncate">${p.equipo_local}</span></div><div class="w-2/12 text-center">${est}</div><div class="flex items-center gap-3 w-5/12 justify-end"><span class="font-bold text-gray-700 truncate">${p.equipo_visitante}</span><div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center font-bold text-white border">⚫</div></div></div>`;
+              });
+              html += `</div></div>`; lista.innerHTML += html;
+          });
+      }
+
+      async function crearPartido() {
+          const j = document.getElementById('cal-jornada').value; const f = document.getElementById('cal-fecha').value; const l = document.getElementById('cal-local').value; const v = document.getElementById('cal-visitante').value;
+          if(!j || !f || !l || !v) return alert("Datos incorrectos");
+          const { error } = await _supabase.from('partidos').insert({ jornada: j, fecha: f, equipo_local: l, equipo_visitante: v });
+          if(error) alert(error.message); else { alert("Partido creado"); cargarCalendario(); }
+      }
+
+      function abrirPopUpPartido(id, l, v, gl, gv, jug, f, j) {
+          partidoActualId = id;
+          document.getElementById('popup-jornada').innerText = `Jornada ${j}`; document.getElementById('popup-fecha').innerText = f;
+          document.getElementById('popup-local').innerText = l; document.getElementById('popup-visitante').innerText = v;
+          const m = document.getElementById('popup-marcador');
+          if(jug) { m.innerText = `${gl} - ${gv}`; m.className = "text-5xl font-black text-white"; } else { m.innerText = "VS"; m.className = "text-4xl font-mono text-gray-400"; }
+          document.getElementById('edit-goles-local').value = gl; document.getElementById('edit-goles-visitante').value = gv;
+          const em = document.getElementById('user-email').innerText;
+          if(em === EMAIL_ADMIN) document.getElementById('admin-partido-controls').classList.remove('hidden'); else document.getElementById('admin-partido-controls').classList.add('hidden');
+          document.getElementById('modal-partido').classList.remove('hidden');
+      }
+
+      async function guardarResultadoPartido() {
+          await _supabase.from('partidos').update({ goles_local: document.getElementById('edit-goles-local').value, goles_visitante: document.getElementById('edit-goles-visitante').value, jugado: true }).eq('id', partidoActualId);
+          cerrarModal('modal-partido'); cargarCalendario();
+      }
+
+      // --- 7. ÁRBITRO, RANKING Y PLANTILLA ---
+      async function abrirGestorPuntos() { document.getElementById('modal-puntos').classList.remove('hidden'); const s = document.getElementById('select-jugador-puntos'); const { data: j } = await _supabase.from('jugadores').select('id, nombre, posicion').order('nombre'); s.innerHTML = '<option value="" data-pos="">-- Elige --</option>'; j.forEach(x => s.innerHTML += `<option value="${x.id}" data-pos="${x.posicion}">${x.nombre} (${x.posicion})</option>`); ['goles','asist','paradas','ama','roja'].forEach(k => document.getElementById('stats-'+k).value=0); calcularPuntosEnVivo(); }
+      function calcularPuntosEnVivo() { const s = document.getElementById('select-jugador-puntos'); const pos = s.options[s.selectedIndex].getAttribute('data-pos'); let vg=4, vp=5; if(pos==='MEDIO') vg=6; if(pos==='DEFENSA') vg=10; if(pos==='PORTERO'){vg=20;vp=1;} document.getElementById('info-bonus-posicion').innerText = pos ? `Gol: +${vg}` : '...'; const i = ['goles','asist','paradas','ama','roja'].map(k=>parseInt(document.getElementById('stats-'+k).value)||0); const t = 2 + (i[0]*vg) + (i[1]*3) + (i[2]*vp) - (i[3]*2) - (i[4]*5); const p = document.getElementById('puntos-preview'); p.innerText=t; p.className=t>=0?"text-2xl font-black text-blue-600":"text-2xl font-black text-red-600"; }
+      async function guardarPuntos() { const jId = document.getElementById('select-jugador-puntos').value; if(!jId) return alert("Elige jugador"); const pts = parseInt(document.getElementById('puntos-preview').innerText); await _supabase.from('actuaciones').insert({ jugador_id: jId, puntos_calculados: pts, goles: document.getElementById('stats-goles').value, asistencias: document.getElementById('stats-asist').value, paradas: document.getElementById('stats-paradas').value, amarillas: document.getElementById('stats-ama').value, rojas: document.getElementById('stats-roja').value }); const { data: f } = await _supabase.from('plantilla').select('equipo_id').eq('jugador_id', jId).maybeSingle(); if(f) { const { data: eq } = await _supabase.from('equipos_fantasy').select('id, puntos_totales, nombre_equipo').eq('id', f.equipo_id).single(); await _supabase.from('equipos_fantasy').update({ puntos_totales: eq.puntos_totales + pts }).eq('id', eq.id); alert(`✅ +${pts} a ${eq.nombre_equipo}`); } else { alert("✅ Puntos guardados"); } ['goles','asist','paradas','ama','roja'].forEach(k => document.getElementById('stats-'+k).value=0); calcularPuntosEnVivo(); cargarRanking(); }
+      async function cargarRanking() { const { data: eqs } = await _supabase.from("equipos_fantasy").select("*").order("puntos_totales", { ascending: false }); const t = document.getElementById("tabla-ranking"); t.innerHTML = ""; eqs.forEach((e, i) => { t.innerHTML += `<tr class="border-b hover:bg-blue-50 cursor-pointer"><td class="p-4 font-bold text-gray-500">#${i+1}</td><td class="p-4 font-bold text-lg">${e.nombre_equipo}</td><td class="p-4 text-right text-green-600 font-bold">${(e.presupuesto/1000000).toFixed(0)}M</td><td class="p-4 text-right font-bold text-blue-600 text-xl">${e.puntos_totales}</td></tr>`; }); }
+      async function cargarPlantilla() { const { data: { user } } = await _supabase.auth.getUser(); if (!user) return; const { data: miEquipo } = await _supabase.from("equipos_fantasy").select("id").eq("usuario_id", user.id).maybeSingle(); if (!miEquipo) { document.getElementById('campo-titulares').innerHTML = `<button onclick="crearEquipoNuevo()" class="bg-white text-green-700 px-6 py-2 rounded-full font-bold shadow block mx-auto">Crear Equipo</button>`; return; } await cargarOfertasRecibidas(miEquipo.id); const { data: plt } = await _supabase.from("plantilla").select(`es_titular, jugadores (id, nombre, posicion, precio, precio_anterior, foto_url)`).eq("equipo_id", miEquipo.id); let val = 0; const tit = plt.filter(p => p.es_titular).sort((a,b) => ordenPos(a.jugadores.posicion) - ordenPos(b.jugadores.posicion)); const sup = plt.filter(p => !p.es_titular); const render = (p, esTit) => { val += p.jugadores.precio; return `<div onclick="abrirModalJugador(${p.jugadores.id}, '${p.jugadores.nombre.replace(/'/g,"\\'")}', '${p.jugadores.posicion}', ${p.jugadores.precio}, '${p.jugadores.foto_url}', ${esTit})" class="mx-auto w-full transform hover:scale-105 transition cursor-pointer flex items-center bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border-l-4 ${getColorBorde(p.jugadores.posicion)}"><div class="w-12 h-12 rounded-full bg-gray-200 overflow-hidden mr-3 border"><img src="${p.jugadores.foto_url}" class="w-full h-full object-cover"></div><div class="flex-1 flex justify-between items-center"><div><p class="text-[10px] font-bold text-gray-500">${p.jugadores.posicion}</p><div class="flex items-center"><h4 class="font-bold text-gray-900 leading-none">${p.jugadores.nombre}</h4>${generarBadgePrecio(p.jugadores.precio, p.jugadores.precio_anterior)}</div></div><div class="text-right"><span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-bold">${esTit?"TIT":"SUP"}</span></div></div></div>`; }; document.getElementById("campo-titulares").innerHTML = tit.length ? tit.map(p => render(p, true)).join('') : '<p class="text-white text-center">Vacío</p>'; document.getElementById("grid-suplentes").innerHTML = sup.map(p => render(p, false)).join(''); document.getElementById("valor-plantilla").innerText = (val/1000000).toFixed(1) + " M€"; }
+      async function resolverMercado() { if(!confirm("¿Cerrar?")) return; const { data: p } = await _supabase.from('pujas').select('*').order('monto', { ascending: false }); const win = {}; p.forEach(x => { if(!win[x.jugador_id]) win[x.jugador_id]=x; }); for (const w of Object.values(win)) { const { data: e } = await _supabase.from('equipos_fantasy').select('presupuesto').eq('id', w.equipo_id).single(); await _supabase.from('equipos_fantasy').update({ presupuesto: e.presupuesto-w.monto }).eq('id', w.equipo_id); await _supabase.from('plantilla').insert({ equipo_id: w.equipo_id, jugador_id: w.jugador_id, es_titular: false }); await _supabase.from('pujas').delete().eq('jugador_id', w.jugador_id); } alert("Cerrado"); cargarMercado(); }
+      async function actualizarPreciosSemana() { if (!confirm("¿Simular?")) return; const { data: j } = await _supabase.from('jugadores').select('*'); for (const x of j) { const f = 0.95 + Math.random() * 0.15; await _supabase.from('jugadores').update({ precio: Math.round(x.precio * f), precio_anterior: x.precio }).eq('id', x.id); } alert("Precios OK"); cargarMercado(); cargarPlantilla(); }
+      function abrirModalJugador(id, n, pos, p, f, tit) { jugadorActualId = id; esTitularActual = tit; document.getElementById('modal-nombre').innerText = n; document.getElementById('modal-posicion').innerText = pos; document.getElementById('modal-precio').innerText = (p/1000000).toFixed(1) + " M€"; document.getElementById('modal-foto').src = f; const b = document.getElementById('btn-titular'); b.innerText = tit ? "⬇️ Banquillo" : "⬆️ Titular"; b.onclick = () => cambiarEstado(!tit); document.getElementById('btn-vender').onclick = () => venderJugador(p); const st = document.getElementById('modal-estado'); st.innerText = tit ? "🟢 TITULAR" : "⚪ SUPLENTE"; st.className = tit ? "px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800" : "px-3 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-600"; document.getElementById('modal-jugador').classList.remove('hidden'); }
+      async function cambiarEstado(n) { const { data: { user } } = await _supabase.auth.getUser(); const { data: eq } = await _supabase.from("equipos_fantasy").select("id").eq("usuario_id", user.id).single(); await _supabase.from('plantilla').update({ es_titular: n }).eq('equipo_id', eq.id).eq('jugador_id', jugadorActualId); cerrarModal('modal-jugador'); cargarPlantilla(); }
+      async function venderJugador(p) { if(!confirm("¿Vender?")) return; const { data: { user } } = await _supabase.auth.getUser(); const { data: eq } = await _supabase.from("equipos_fantasy").select("id, presupuesto").eq("usuario_id", user.id).single(); await _supabase.from('plantilla').delete().eq('equipo_id', eq.id).eq('jugador_id', jugadorActualId); await _supabase.from('equipos_fantasy').update({ presupuesto: eq.presupuesto + p }).eq('id', eq.id); cerrarModal('modal-jugador'); cargarPlantilla(); }
+      async function crearEquipoNuevo() { const n = prompt("Nombre:"); if(n) { const { data: { user } } = await _supabase.auth.getUser(); await _supabase.from('equipos_fantasy').insert({ usuario_id: user.id, nombre_equipo: n, presupuesto: 200000000, puntos_totales: 0 }); cargarPlantilla(); } }
+      async function logout() { await _supabase.auth.signOut(); window.location.href = "index.html"; }
+      async function cargarOfertasRecibidas(eqId) { const box = document.getElementById('buzon-ofertas'); const list = document.getElementById('lista-ofertas'); const { data: pl } = await _supabase.from('plantilla').select('jugador_id').eq('equipo_id', eqId); if(!pl || !pl.length) return; const ids = pl.map(x => x.jugador_id); const { data: ofs } = await _supabase.from('pujas').select('id, monto, equipo_id, jugador_id').in('jugador_id', ids); if(!ofs || !ofs.length) { box.classList.add('hidden'); return; } box.classList.remove('hidden'); list.innerHTML = ''; for(const o of ofs) { const { data: riv } = await _supabase.from('equipos_fantasy').select('nombre_equipo').eq('id', o.equipo_id).single(); const { data: jug } = await _supabase.from('jugadores').select('nombre').eq('id', o.jugador_id).single(); list.innerHTML += `<div class="bg-white p-2 border flex justify-between"><div><p class="text-sm font-bold">Oferta por ${jug.nombre}</p><p class="text-xs">De: ${riv.nombre_equipo}</p></div><div class="flex gap-2 items-center"><span class="font-bold text-green-600">${(o.monto/1000000).toFixed(1)}M</span><button onclick="gestionarOferta(${o.id},true)" class="bg-green-500 text-white px-2 rounded">OK</button><button onclick="gestionarOferta(${o.id},false)" class="bg-red-500 text-white px-2 rounded">X</button></div></div>`; } }
+      async function gestionarOferta(id, ok) { if(!ok) { await _supabase.from('pujas').delete().eq('id', id); cargarPlantilla(); return; } if(!confirm("¿Aceptar?")) return; const { data: p } = await _supabase.from('pujas').select('*').eq('id', id).single(); const { data: comp } = await _supabase.from('equipos_fantasy').select('id, presupuesto').eq('id', p.equipo_id).single(); const { data: { user } } = await _supabase.auth.getUser(); const { data: yo } = await _supabase.from('equipos_fantasy').select('id, presupuesto').eq('usuario_id', user.id).single(); if(comp.presupuesto < p.monto) return alert("Sin fondos"); await _supabase.from('equipos_fantasy').update({ presupuesto: comp.presupuesto - p.monto }).eq('id', comp.id); await _supabase.from('equipos_fantasy').update({ presupuesto: yo.presupuesto + p.monto }).eq('id', yo.id); await _supabase.from('plantilla').delete().match({ equipo_id: yo.id, jugador_id: p.jugador_id }); await _supabase.from('plantilla').insert({ equipo_id: comp.id, jugador_id: p.jugador_id, es_titular: false }); await _supabase.from('pujas').delete().eq('jugador_id', p.jugador_id); alert("Vendido!"); cargarPlantilla(); }
+    </script>
+  </body>
+</html>

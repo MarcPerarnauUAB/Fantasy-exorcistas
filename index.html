@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fantasy Colegas - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-900 min-h-screen flex items-center justify-center">
+
+    <div class="bg-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-md border border-gray-700">
+        <h1 class="text-3xl font-bold text-center text-blue-400 mb-2">⚽ Fantasy Login</h1>
+        
+        <div class="space-y-4 mt-6">
+            <input id="email" type="email" placeholder="Email" class="w-full p-3 bg-gray-700 rounded text-white border border-gray-600">
+            <input id="password" type="password" placeholder="Contraseña" class="w-full p-3 bg-gray-700 rounded text-white border border-gray-600">
+            
+            <button onclick="login()" class="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-bold text-white">
+                Entrar
+            </button>
+            <div id="error" class="text-red-400 text-center text-sm hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- TUS CLAVES ---
+        const supabaseUrl = 'https://jruomktwaehlocyrivsx.supabase.co'
+        
+        // Clave ANON correcta (la que me pasaste antes)
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpydW9ta3R3YWVobG9jeXJpdnN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MTc0NTAsImV4cCI6MjA4MTE5MzQ1MH0.CDhHO5jFLNrIaf-yffEcGViaDN01L4sqwRFpFtnIBCg'
+        
+        // CORRECCIÓN AQUÍ: Cambiamos el nombre de la variable a '_supabase' para que no choque
+        const _supabase = supabase.createClient(supabaseUrl, supabaseKey)
+
+        // 1. Si ya estás logueado, te mando a la app directamente
+        _supabase.auth.onAuthStateChange((event, session) => {
+            if (session) window.location.href = 'app.html'
+        })
+
+        async function login() {
+            const email = document.getElementById('email').value
+            const password = document.getElementById('password').value
+            
+            // Usamos la nueva variable _supabase
+            const { data, error } = await _supabase.auth.signInWithPassword({ email, password })
+            
+            if (error) {
+                document.getElementById('error').innerText = "Error: " + error.message
+                document.getElementById('error').classList.remove('hidden')
+            } else {
+                // Redirigir si todo va bien
+                window.location.href = 'app.html'
+            }
+        }
+    </script>
+</body>
+</html>
