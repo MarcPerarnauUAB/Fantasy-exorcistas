@@ -297,10 +297,8 @@
       const supabaseUrl = "https://jruomktwaehlocyrivsx.supabase.co";
       const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpydW9ta3R3YWVobG9jeXJpdnN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MTc0NTAsImV4cCI6MjA4MTE5MzQ1MH0.CDhHO5jFLNrIaf-yffEcGViaDN01L4sqwRFpFtnIBCg"; 
       const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
-      
-      // --- ⚠️ CONFIGURA TU EMAIL DE ADMIN AQUÍ ---
       const EMAIL_ADMIN = "m.liang.perarnau@gmail.com"; 
-
+      
       let partidoActualId = null;
       let jugadorActualId = null;
       let esTitularActual = false;
@@ -437,8 +435,25 @@
 
         const { data: oc } = await _supabase.from('plantilla').select('jugador_id');
         const ocupados = oc ? oc.map(x => x.jugador_id) : [];
-        const { data: p } = await _supabase.from('pujas').select('jugador_id, monto, equipo_id');
-        const pujas = {}; if(p) p.forEach(x => { if(!pujas[x.jugador_id]) pujas[x.jugador_id]={max:0,mi:0}; if(x.monto>pujas[x.jugador_id].max) pujas[x.jugador_id].max=x.monto; if(x.equipo_id===eq.id) pujas[x.jugador_id].mi=x.monto; });
+        
+        // --- AQUÍ ESTÁ EL CAMBIO PARA TRAER EL NOMBRE DEL EQUIPO LÍDER ---
+        const { data: p } = await _supabase.from('pujas').select('jugador_id, monto, equipo_id, equipos_fantasy(nombre_equipo)');
+        
+        const pujas = {}; 
+        if(p) {
+            p.forEach(x => { 
+                if(!pujas[x.jugador_id]) pujas[x.jugador_id]={max:0,mi:0,lider:''}; 
+                
+                // Actualizar puja máxima y líder
+                if(x.monto > pujas[x.jugador_id].max) {
+                    pujas[x.jugador_id].max = x.monto;
+                    pujas[x.jugador_id].lider = x.equipos_fantasy ? x.equipos_fantasy.nombre_equipo : 'Desconocido';
+                }
+                
+                if(x.equipo_id === eq.id) pujas[x.jugador_id].mi = x.monto; 
+            });
+        }
+
         const { data: acts } = await _supabase.from('actuaciones').select('jugador_id, puntos_calculados');
         const pts = {}; if(acts) acts.forEach(a => { if(!pts[a.jugador_id]) pts[a.jugador_id]=0; pts[a.jugador_id]+=a.puntos_calculados; });
         
@@ -450,10 +465,14 @@
         if(!libres.length) { grid.innerHTML = '<p class="text-center col-span-3">Mercado vacío.</p>'; return; }
 
         libres.forEach(j => {
-            const inf = pujas[j.id] || {max:0,mi:0};
+            const inf = pujas[j.id] || {max:0,mi:0,lider:''};
+            
+            // Texto del líder de la puja
+            const textoLider = inf.max > 0 ? `<span class="text-[10px] text-gray-500 font-normal ml-1">(${inf.lider})</span>` : '';
+
             grid.innerHTML += `
             <div class="bg-white rounded-lg shadow-md p-4 border-l-4 ${getColorBorde(j.posicion)} ${inf.mi>0?'ring-2 ring-purple-500':''} flex flex-col gap-3">
-                <div class="flex gap-3"><div class="w-14 h-14 rounded-full bg-gray-200 overflow-hidden"><img src="${j.foto_url}" class="w-full h-full object-cover"></div><div class="w-full"><div class="flex justify-between"><div><p class="text-[10px] font-bold text-gray-400">${j.posicion}</p><div class="flex items-center"><h3 class="font-bold text-sm">${j.nombre}</h3>${generarBadgePrecio(j.precio, j.precio_anterior)}</div></div><div class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold">🎯 ${pts[j.id]||0}</div></div><div class="grid grid-cols-2 gap-2 mt-2 text-xs bg-gray-50 p-2 rounded"><div><p class="text-gray-400">Valor</p><p class="font-bold">${(j.precio/1000000).toFixed(1)} M€</p></div><div><p class="text-orange-500 font-bold">🔥 Max</p><p class="font-bold">${inf.max>0?(inf.max/1000000).toFixed(1)+'M':'-'}</p></div></div><p class="text-[10px] text-red-500 font-bold mt-1 text-right">⚡ ${(j.precio*1.5/1000000).toFixed(1)} M€</p></div></div>
+                <div class="flex gap-3"><div class="w-14 h-14 rounded-full bg-gray-200 overflow-hidden"><img src="${j.foto_url}" class="w-full h-full object-cover"></div><div class="w-full"><div class="flex justify-between"><div><p class="text-[10px] font-bold text-gray-400">${j.posicion}</p><div class="flex items-center"><h3 class="font-bold text-sm">${j.nombre}</h3>${generarBadgePrecio(j.precio, j.precio_anterior)}</div></div><div class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold">🎯 ${pts[j.id]||0}</div></div><div class="grid grid-cols-2 gap-2 mt-2 text-xs bg-gray-50 p-2 rounded"><div><p class="text-gray-400">Valor</p><p class="font-bold">${(j.precio/1000000).toFixed(1)} M€</p></div><div><p class="text-orange-500 font-bold">🔥 Max ${textoLider}</p><p class="font-bold">${inf.max>0?(inf.max/1000000).toFixed(1)+'M':'-'}</p></div></div><p class="text-[10px] text-red-500 font-bold mt-1 text-right">⚡ ${(j.precio*1.5/1000000).toFixed(1)} M€</p></div></div>
                 <div class="flex gap-2 border-t pt-2"><input type="number" id="inp-${j.id}" class="w-full text-sm border rounded px-1" value="${j.precio}"><button onclick="realizarPuja(${j.id}, '${j.nombre.replace(/'/g,"\\'")}', ${j.precio})" class="bg-purple-600 text-white text-xs font-bold px-3 rounded">Pujar</button></div>
             </div>`;
         });
@@ -594,6 +613,175 @@
           calcularPuntosEnVivo(); cargarRanking(); 
       }
 
+      async function cargarRanking() { 
+          const { data: equipos, error } = await _supabase.from("equipos_fantasy").select("*").order("puntos_totales", { ascending: false });
+          if (error) return console.error(error);
+          const tabla = document.getElementById("tabla-ranking");
+          tabla.innerHTML = "";
+          
+          equipos.forEach((eq, index) => {
+            const clickEvento = `verEquipo(${eq.id}, '${eq.nombre_equipo.replace(/'/g, "\\'")}')`;
+            
+            tabla.innerHTML += `
+              <tr onclick="${clickEvento}" class="border-b hover:bg-blue-50 transition cursor-pointer">
+                  <td class="p-4 font-bold text-gray-500">#${index + 1}</td>
+                  <td class="p-4 font-bold text-lg text-gray-800">${eq.nombre_equipo}</td>
+                  <td class="p-4 text-right text-green-600 font-mono font-bold">${(eq.presupuesto / 1000000).toFixed(0)}M €</td>
+                  <td class="p-4 text-right font-bold text-blue-600 text-xl">${eq.puntos_totales} pts</td>
+              </tr>`;
+          });
+      }
+
+      async function cargarPlantilla() { 
+          // 1. Obtener Usuario
+          const { data: { user } } = await _supabase.auth.getUser();
+          if (!user) return;
+
+          // 2. Obtener Mi Equipo
+          const { data: miEquipo, error: errorEquipo } = await _supabase
+              .from("equipos_fantasy")
+              .select("id, presupuesto")
+              .eq("usuario_id", user.id)
+              .maybeSingle();
+
+          if (errorEquipo) {
+              console.error("Error buscando equipo:", errorEquipo);
+              alert("Error de conexión: " + errorEquipo.message);
+              return;
+          }
+
+          // Si no tiene equipo, mostrar botón de crear
+          if (!miEquipo) {
+              document.getElementById('campo-titulares').innerHTML = `
+                  <div class="text-center mt-10">
+                      <p class="text-white mb-4">No tienes equipo todavía.</p>
+                      <button onclick="crearEquipoNuevo()" class="bg-white text-green-700 px-6 py-3 rounded-full font-bold shadow-lg transform hover:scale-105 transition">
+                          ✨ Crear Equipo Ahora
+                      </button>
+                  </div>`;
+              document.getElementById('valor-plantilla').innerText = "0 M€";
+              return; 
+          }
+
+          // 3. Cargar Buzón (Ofertas)
+          await cargarOfertasRecibidas(miEquipo.id);
+
+          // 4. Cargar Jugadores (Plantilla)
+          try {
+              const { data: plantilla, error: errorPlantilla } = await _supabase
+                  .from("plantilla")
+                  .select(`
+                      es_titular, 
+                      jugadores (
+                          id, nombre, posicion, precio, precio_anterior, foto_url
+                      )
+                  `)
+                  .eq("equipo_id", miEquipo.id);
+
+              if (errorPlantilla) throw errorPlantilla;
+
+              // Calcular Valor y Separar
+              let valorTotal = 0;
+              const titulares = [];
+              const suplentes = [];
+
+              if (plantilla && plantilla.length > 0) {
+                  plantilla.forEach(p => {
+                      if(p.jugadores) {
+                          valorTotal += p.jugadores.precio;
+                          if(p.es_titular) titulares.push(p);
+                          else suplentes.push(p);
+                      }
+                  });
+              }
+
+              // Ordenar
+              titulares.sort((a, b) => ordenPos(a.jugadores.posicion) - ordenPos(b.jugadores.posicion));
+              suplentes.sort((a, b) => ordenPos(a.jugadores.posicion) - ordenPos(b.jugadores.posicion));
+
+              // Render
+              const render = (p, esTit) => {
+                  const j = p.jugadores;
+                  const badge = generarBadgePrecio(j.precio, j.precio_anterior);
+                  const nombreSafe = j.nombre.replace(/'/g, "\\'");
+                  const foto = j.foto_url || "https://via.placeholder.com/150";
+                  const datosJugador = `abrirModalJugador(${j.id}, '${nombreSafe}', '${j.posicion}', ${j.precio}, '${foto}', ${esTit})`;
+                  
+                  return `
+                      <div onclick="${datosJugador}" class="mx-auto w-full transform hover:scale-105 transition cursor-pointer flex items-center bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border-l-4 ${getColorBorde(j.posicion)}">
+                          <div class="w-12 h-12 rounded-full bg-gray-200 overflow-hidden mr-3 border border-gray-300">
+                              <img src="${foto}" class="w-full h-full object-cover">
+                          </div>
+                          <div class="flex-1 flex justify-between items-center">
+                              <div>
+                                  <p class="text-[10px] font-bold text-gray-500 uppercase">${j.posicion}</p>
+                                  <div class="flex items-center">
+                                      <h4 class="font-bold text-gray-900 leading-none text-sm">${j.nombre}</h4>
+                                      ${badge}
+                                  </div>
+                              </div>
+                              <div class="text-right">
+                                  <span class="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-bold border">
+                                      ${esTit ? "TITULAR" : "BANCA"}
+                                  </span>
+                              </div>
+                          </div>
+                      </div>`;
+              };
+
+              const htmlTitulares = titulares.length ? titulares.map(p => render(p, true)).join('') : '<p class="text-white text-center italic opacity-70">Alineación vacía</p>';
+              const htmlSuplentes = suplentes.length ? suplentes.map(p => render(p, false)).join('') : '<p class="text-gray-400 text-center text-sm italic">Banquillo vacío</p>';
+
+              document.getElementById("campo-titulares").innerHTML = htmlTitulares;
+              document.getElementById("grid-suplentes").innerHTML = htmlSuplentes;
+              document.getElementById("valor-plantilla").innerText = (valorTotal / 1000000).toFixed(1) + " M€";
+
+          } catch (err) {
+              console.error("Error crítico cargando plantilla:", err);
+              document.getElementById("campo-titulares").innerHTML = `<p class="text-red-300 text-center bg-red-900/50 p-2 rounded">Error: ${err.message}</p>`;
+          }
+      }
+
+      async function resolverMercado() { if(!confirm("¿Cerrar?")) return; const { data: p } = await _supabase.from('pujas').select('*').order('monto', { ascending: false }); const win = {}; p.forEach(x => { if(!win[x.jugador_id]) win[x.jugador_id]=x; }); for (const w of Object.values(win)) { const { data: e } = await _supabase.from('equipos_fantasy').select('presupuesto').eq('id', w.equipo_id).single(); await _supabase.from('equipos_fantasy').update({ presupuesto: e.presupuesto-w.monto }).eq('id', w.equipo_id); await _supabase.from('plantilla').insert({ equipo_id: w.equipo_id, jugador_id: w.jugador_id, es_titular: false }); await _supabase.from('pujas').delete().eq('jugador_id', w.jugador_id); } alert("Cerrado"); cargarMercado(); }
+      async function actualizarPreciosSemana() { if (!confirm("¿Simular?")) return; const { data: j } = await _supabase.from('jugadores').select('*'); for (const x of j) { const f = 0.95 + Math.random() * 0.15; await _supabase.from('jugadores').update({ precio: Math.round(x.precio * f), precio_anterior: x.precio }).eq('id', x.id); } alert("Precios OK"); cargarMercado(); cargarPlantilla(); }
+      function abrirModalJugador(id, n, pos, p, f, tit) { jugadorActualId = id; esTitularActual = tit; document.getElementById('modal-nombre').innerText = n; document.getElementById('modal-posicion').innerText = pos; document.getElementById('modal-precio').innerText = (p/1000000).toFixed(1) + " M€"; document.getElementById('modal-foto').src = f; const b = document.getElementById('btn-titular'); b.innerText = tit ? "⬇️ Banquillo" : "⬆️ Titular"; b.onclick = () => cambiarEstado(!tit); document.getElementById('btn-vender').onclick = () => venderJugador(p); const st = document.getElementById('modal-estado'); st.innerText = tit ? "🟢 TITULAR" : "⚪ SUPLENTE"; st.className = tit ? "px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800" : "px-3 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-600"; document.getElementById('modal-jugador').classList.remove('hidden'); }
+      async function cambiarEstado(n) { const { data: { user } } = await _supabase.auth.getUser(); const { data: eq } = await _supabase.from("equipos_fantasy").select("id").eq("usuario_id", user.id).single(); await _supabase.from('plantilla').update({ es_titular: n }).eq('equipo_id', eq.id).eq('jugador_id', jugadorActualId); cerrarModal('modal-jugador'); cargarPlantilla(); }
+      async function venderJugador(p) { if(!confirm("¿Vender?")) return; const { data: { user } } = await _supabase.auth.getUser(); const { data: eq } = await _supabase.from("equipos_fantasy").select("id, presupuesto").eq("usuario_id", user.id).single(); await _supabase.from('plantilla').delete().eq('equipo_id', eq.id).eq('jugador_id', jugadorActualId); await _supabase.from('equipos_fantasy').update({ presupuesto: eq.presupuesto + p }).eq('id', eq.id); cerrarModal('modal-jugador'); cargarPlantilla(); }
+      async function crearEquipoNuevo() { const n = prompt("Nombre:"); if(n) { const { data: { user } } = await _supabase.auth.getUser(); await _supabase.from('equipos_fantasy').insert({ usuario_id: user.id, nombre_equipo: n, presupuesto: 200000000, puntos_totales: 0 }); cargarPlantilla(); } }
+      async function logout() { await _supabase.auth.signOut(); window.location.href = "index.html"; }
+      
+      async function cargarOfertasRecibidas(eqId) { 
+          const box = document.getElementById('buzon-ofertas'); 
+          const list = document.getElementById('lista-ofertas'); 
+          const { data: pl } = await _supabase.from('plantilla').select('jugador_id').eq('equipo_id', eqId); 
+          if(!pl || !pl.length) return; 
+          const ids = pl.map(x => x.jugador_id); 
+          const { data: ofs } = await _supabase.from('pujas').select('id, monto, equipo_id, jugador_id').in('jugador_id', ids); 
+          if(!ofs || !ofs.length) { box.classList.add('hidden'); return; } 
+          box.classList.remove('hidden'); list.innerHTML = ''; 
+          for(const o of ofs) { 
+              const { data: riv } = await _supabase.from('equipos_fantasy').select('nombre_equipo').eq('id', o.equipo_id).single(); 
+              const { data: jug } = await _supabase.from('jugadores').select('nombre').eq('id', o.jugador_id).single(); 
+              list.innerHTML += `<div class="bg-white p-2 border flex justify-between"><div><p class="text-sm font-bold">Oferta por ${jug.nombre}</p><p class="text-xs">De: ${riv.nombre_equipo}</p></div><div class="flex gap-2 items-center"><span class="font-bold text-green-600">${(o.monto/1000000).toFixed(1)}M</span><button onclick="gestionarOferta(${o.id},true)" class="bg-green-500 text-white px-2 rounded">OK</button><button onclick="gestionarOferta(${o.id},false)" class="bg-red-500 text-white px-2 rounded">X</button></div></div>`; 
+          } 
+      }
+
+      async function gestionarOferta(id, ok) { 
+          if(!ok) { await _supabase.from('pujas').delete().eq('id', id); cargarPlantilla(); return; } 
+          if(!confirm("¿Aceptar?")) return; 
+          const { data: p } = await _supabase.from('pujas').select('*').eq('id', id).single(); 
+          const { data: comp } = await _supabase.from('equipos_fantasy').select('id, presupuesto').eq('id', p.equipo_id).single(); 
+          const { data: { user } } = await _supabase.auth.getUser(); 
+          const { data: yo } = await _supabase.from('equipos_fantasy').select('id, presupuesto').eq('usuario_id', user.id).single(); 
+          if(comp.presupuesto < p.monto) return alert("Sin fondos"); 
+          await _supabase.from('equipos_fantasy').update({ presupuesto: comp.presupuesto - p.monto }).eq('id', comp.id); 
+          await _supabase.from('equipos_fantasy').update({ presupuesto: yo.presupuesto + p.monto }).eq('id', yo.id); 
+          await _supabase.from('plantilla').delete().match({ equipo_id: yo.id, jugador_id: p.jugador_id }); 
+          await _supabase.from('plantilla').insert({ equipo_id: comp.id, jugador_id: p.jugador_id, es_titular: false }); 
+          await _supabase.from('pujas').delete().eq('jugador_id', p.jugador_id); 
+          alert("Vendido!"); cargarPlantilla(); 
+      }
+
       // --- 9. INTERACCIÓN RIVALES (NUEVO) ---
       async function verEquipo(eqId, n) {
         const { data: { user } } = await _supabase.auth.getUser();
@@ -658,80 +846,6 @@
               await _supabase.from('pujas').insert({ equipo_id: yo.id, jugador_id: id, monto: m });
               alert("Oferta enviada"); cerrarModal('modal-compra-rival');
           }
-      }
-
-      // --- 10. MODAL JUGADOR PROPIO Y PLANTILLA ---
-      function abrirModalJugador(id, n, pos, p, f, tit) { 
-          jugadorActualId = id; esTitularActual = tit; 
-          document.getElementById('modal-nombre').innerText = n; 
-          document.getElementById('modal-posicion').innerText = pos; 
-          document.getElementById('modal-precio').innerText = (p/1000000).toFixed(1) + " M€"; 
-          document.getElementById('modal-foto').src = f; 
-          const b = document.getElementById('btn-titular'); 
-          b.innerText = tit ? "⬇️ Banquillo" : "⬆️ Titular"; 
-          b.onclick = () => cambiarEstado(!tit); 
-          document.getElementById('btn-vender').onclick = () => venderJugador(p); 
-          const st = document.getElementById('modal-estado'); 
-          st.innerText = tit ? "🟢 TITULAR" : "⚪ SUPLENTE"; 
-          st.className = tit ? "px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800" : "px-3 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-600"; 
-          document.getElementById('modal-jugador').classList.remove('hidden'); 
-      }
-
-      async function cambiarEstado(n) { 
-          const { data: { user } } = await _supabase.auth.getUser(); 
-          const { data: eq } = await _supabase.from("equipos_fantasy").select("id").eq("usuario_id", user.id).single(); 
-          await _supabase.from('plantilla').update({ es_titular: n }).eq('equipo_id', eq.id).eq('jugador_id', jugadorActualId); 
-          cerrarModal('modal-jugador'); cargarPlantilla(); 
-      }
-
-      async function venderJugador(p) { 
-          if(!confirm("¿Vender?")) return; 
-          const { data: { user } } = await _supabase.auth.getUser(); 
-          const { data: eq } = await _supabase.from("equipos_fantasy").select("id, presupuesto").eq("usuario_id", user.id).single(); 
-          await _supabase.from('plantilla').delete().eq('equipo_id', eq.id).eq('jugador_id', jugadorActualId); 
-          await _supabase.from('equipos_fantasy').update({ presupuesto: eq.presupuesto + p }).eq('id', eq.id); 
-          cerrarModal('modal-jugador'); cargarPlantilla(); 
-      }
-
-      async function crearEquipoNuevo() { 
-          const n = prompt("Nombre:"); if(n) { 
-              const { data: { user } } = await _supabase.auth.getUser(); 
-              await _supabase.from('equipos_fantasy').insert({ usuario_id: user.id, nombre_equipo: n, presupuesto: 200000000, puntos_totales: 0 }); 
-              cargarPlantilla(); 
-          } 
-      }
-      async function logout() { await _supabase.auth.signOut(); window.location.href = "index.html"; }
-      
-      async function cargarOfertasRecibidas(eqId) { 
-          const box = document.getElementById('buzon-ofertas'); 
-          const list = document.getElementById('lista-ofertas'); 
-          const { data: pl } = await _supabase.from('plantilla').select('jugador_id').eq('equipo_id', eqId); 
-          if(!pl || !pl.length) return; 
-          const ids = pl.map(x => x.jugador_id); 
-          const { data: ofs } = await _supabase.from('pujas').select('id, monto, equipo_id, jugador_id').in('jugador_id', ids); 
-          if(!ofs || !ofs.length) { box.classList.add('hidden'); return; } 
-          box.classList.remove('hidden'); list.innerHTML = ''; 
-          for(const o of ofs) { 
-              const { data: riv } = await _supabase.from('equipos_fantasy').select('nombre_equipo').eq('id', o.equipo_id).single(); 
-              const { data: jug } = await _supabase.from('jugadores').select('nombre').eq('id', o.jugador_id).single(); 
-              list.innerHTML += `<div class="bg-white p-2 border flex justify-between"><div><p class="text-sm font-bold">Oferta por ${jug.nombre}</p><p class="text-xs">De: ${riv.nombre_equipo}</p></div><div class="flex gap-2 items-center"><span class="font-bold text-green-600">${(o.monto/1000000).toFixed(1)}M</span><button onclick="gestionarOferta(${o.id},true)" class="bg-green-500 text-white px-2 rounded">OK</button><button onclick="gestionarOferta(${o.id},false)" class="bg-red-500 text-white px-2 rounded">X</button></div></div>`; 
-          } 
-      }
-
-      async function gestionarOferta(id, ok) { 
-          if(!ok) { await _supabase.from('pujas').delete().eq('id', id); cargarPlantilla(); return; } 
-          if(!confirm("¿Aceptar?")) return; 
-          const { data: p } = await _supabase.from('pujas').select('*').eq('id', id).single(); 
-          const { data: comp } = await _supabase.from('equipos_fantasy').select('id, presupuesto').eq('id', p.equipo_id).single(); 
-          const { data: { user } } = await _supabase.auth.getUser(); 
-          const { data: yo } = await _supabase.from('equipos_fantasy').select('id, presupuesto').eq('usuario_id', user.id).single(); 
-          if(comp.presupuesto < p.monto) return alert("Sin fondos"); 
-          await _supabase.from('equipos_fantasy').update({ presupuesto: comp.presupuesto - p.monto }).eq('id', comp.id); 
-          await _supabase.from('equipos_fantasy').update({ presupuesto: yo.presupuesto + p.monto }).eq('id', yo.id); 
-          await _supabase.from('plantilla').delete().match({ equipo_id: yo.id, jugador_id: p.jugador_id }); 
-          await _supabase.from('plantilla').insert({ equipo_id: comp.id, jugador_id: p.jugador_id, es_titular: false }); 
-          await _supabase.from('pujas').delete().eq('jugador_id', p.jugador_id); 
-          alert("Vendido!"); cargarPlantilla(); 
       }
     </script>
   </body>
