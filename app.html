@@ -11,6 +11,7 @@
       .bg-cesped { background-color: #15803d; background-image: repeating-linear-gradient(0deg, transparent, transparent 19px, #166534 20px); }
       .scrollbar-hide::-webkit-scrollbar { display: none; }
       .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .mercado-cerrado { opacity: 0.6; pointer-events: none; filter: grayscale(0.8); }
     </style>
   </head>
   <body class="bg-gray-100 min-h-screen font-sans">
@@ -30,6 +31,7 @@
             <button onclick="cambiarPestaña('estadisticas')" id="tab-estadisticas" class="px-3 hover:bg-gray-800 h-full flex items-center transition">📊 Estadísticas</button>
           </div>
           <div class="flex items-center gap-4">
+            <button id="btn-admin-recalc" onclick="recalcularTodo()" class="hidden text-xs bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1 rounded transition shadow-lg border border-purple-800 flex items-center gap-1">🔄 Recalcular</button>
             <button id="btn-admin-puntos" onclick="abrirGestorPuntos()" class="hidden text-sm bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-3 py-1 rounded transition shadow-lg border border-yellow-600 flex items-center gap-1">⚽ Árbitro</button>
             <span id="user-email" class="text-xs text-gray-400 hidden sm:block">...</span>
             <button onclick="logout()" class="text-sm bg-red-600 hover:bg-red-700 px-3 py-1 rounded transition">Salir</button>
@@ -145,28 +147,45 @@
       </div>
 
       <div id="seccion-mercado" class="bloque-contenido hidden">
+        
+        <div id="mercado-estado-banner" class="bg-gray-100 p-3 rounded mb-4 text-center border border-gray-300">
+            <h3 id="mercado-status-text" class="font-bold text-lg">Cargando estado...</h3>
+            <p id="mercado-timer" class="text-sm font-mono">--:--:--</p>
+        </div>
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 sticky top-16 bg-gray-100 z-40 py-4 gap-4">
             <div>
-                <h2 class="text-2xl font-bold text-gray-800">💰 Subastas Activas</h2>
-                <p class="text-xs text-gray-500">Puja mínima: 50% del valor. Cláusula: 150%.</p>
+                <h2 class="text-2xl font-bold text-gray-800">💰 Mercado de Fichajes</h2>
+                <p class="text-xs text-gray-500">Puja mínima: 50%. Cláusula: 150%.</p>
             </div>
             
             <div class="flex gap-2 items-center flex-wrap justify-end">
-                <button id="btn-admin-precios" onclick="actualizarPreciosSemana()" class="hidden bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded shadow border border-blue-800 flex items-center gap-1">
-                    🔄 Precios
-                </button>
-                <button id="btn-admin-fichajes" onclick="resolverMercado()" class="hidden bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-2 rounded shadow border border-purple-800 flex items-center gap-1">
-                    ⚡ Fichajes
-                </button>
-                
+                <button id="btn-admin-precios" onclick="actualizarPreciosSemana()" class="hidden bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded shadow border border-blue-800 flex items-center gap-1">🔄 Precios</button>
+                <button id="btn-admin-fichajes" onclick="resolverMercado()" class="hidden bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-2 rounded shadow border border-purple-800 flex items-center gap-1">⚡ Fichajes</button>
                 <div class="text-right bg-white px-4 py-2 rounded-lg shadow border border-green-200 ml-2">
                     <p class="text-xs text-gray-500 uppercase font-bold">Tu Saldo</p>
                     <p id="mercado-presupuesto" class="font-mono font-bold text-green-600 text-xl">...</p>
                 </div>
             </div>
         </div>
-        <div id="grid-mercado" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <p class="text-center text-gray-500 col-span-3 py-10 animate-pulse">Analizando mercado...</p>
+
+        <div id="mercado-contenido">
+            <div class="mb-8">
+                <h3 class="font-bold text-green-800 text-lg mb-4 flex items-center gap-2 border-b border-green-200 pb-2">
+                    <span class="bg-green-100 p-1 rounded">🟢</span> Agentes Libres (Pujas)
+                </h3>
+                <div id="grid-mercado-libres" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <p class="text-center text-gray-500 col-span-3 animate-pulse">Analizando...</p>
+                </div>
+            </div>
+            
+            <div>
+                <h3 class="font-bold text-red-800 text-lg mb-4 flex items-center gap-2 border-b border-red-200 pb-2">
+                    <span class="bg-red-100 p-1 rounded">🔴</span> Jugadores con Contrato (Cláusulazos)
+                </h3>
+                <div id="grid-mercado-ocupados" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-90">
+                    <p class="text-center text-gray-500 col-span-3">Cargando...</p>
+                </div>
+            </div>
         </div>
       </div>
     </main>
@@ -206,8 +225,15 @@
                 <p id="modal-posicion" class="text-sm text-blue-300 font-bold tracking-wider uppercase">Posición</p>
             </div>
             <div class="p-6">
-                <div class="flex justify-between items-center mb-6 bg-gray-50 p-3 rounded border">
-                    <span class="text-gray-500 text-sm">Valor de Mercado</span>
+                <div class="grid grid-cols-4 gap-2 mb-4 text-center text-xs font-bold bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <div class="text-green-600" title="Goles">⚽ <span id="modal-stat-goles">0</span></div>
+                    <div class="text-blue-600" title="Asistencias">👟 <span id="modal-stat-asist">0</span></div>
+                    <div class="text-orange-600" title="Robos">⚔️ <span id="modal-stat-robos">0</span></div>
+                    <div class="col-span-1 text-purple-700 font-black text-sm bg-purple-50 rounded" title="Puntos Totales">🎯 <span id="modal-stat-puntos">0</span></div>
+                </div>
+
+                <div class="flex justify-between items-center mb-6 bg-white p-3 rounded border shadow-sm">
+                    <span class="text-gray-500 text-sm">Valor</span>
                     <span id="modal-precio" class="font-mono font-bold text-green-600 text-lg">0 M€</span>
                 </div>
                 <div class="flex justify-between items-center mb-6">
@@ -270,9 +296,13 @@
                 <div><label class="block text-[10px] font-bold text-green-700">⚽ Gol</label><input type="number" id="stats-goles" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center"></div>
                 <div><label class="block text-[10px] font-bold text-blue-700">👟 Asist</label><input type="number" id="stats-asist" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center"></div>
                 <div><label class="block text-[10px] font-bold text-purple-700">🧤 Parada</label><input type="number" id="stats-paradas" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center"></div>
-                <div><label class="block text-[10px] font-bold text-yellow-600">🟨 Amar</label><input type="number" id="stats-ama" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center"></div>
+                
+                <div><label class="block text-[10px] font-bold text-orange-600">⚔️ Robos</label><input type="number" id="stats-recuperaciones" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center font-bold text-orange-800 bg-orange-50"></div>
+                
                 <div><label class="block text-[10px] font-bold text-red-600">🟥 Roja</label><input type="number" id="stats-roja" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center"></div>
-                <div><label class="block text-[10px] font-bold text-gray-600">🥅 Encaj.</label><input type="number" id="stats-encajados" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center bg-gray-100"></div>
+                <div><label class="block text-[10px] font-bold text-yellow-600">🟨 Amar</label><input type="number" id="stats-ama" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center"></div>
+                
+                <div class="col-span-3 mt-2 border-t pt-2"><label class="block text-[10px] font-bold text-gray-500 text-center">🥅 Goles Encajados (Resta -0.5)</label><input type="number" id="stats-encajados" value="0" min="0" onchange="calcularPuntosEnVivo()" class="w-full border p-1 text-center bg-gray-100"></div>
             </div>
 
             <div class="bg-gray-100 p-3 rounded mb-4">
@@ -298,12 +328,12 @@
       const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpydW9ta3R3YWVobG9jeXJpdnN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MTc0NTAsImV4cCI6MjA4MTE5MzQ1MH0.CDhHO5jFLNrIaf-yffEcGViaDN01L4sqwRFpFtnIBCg"; 
       const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
       
-      // --- ⚠️ CONFIGURA TU EMAIL DE ADMIN AQUÍ ---
       const EMAIL_ADMIN = "m.liang.perarnau@gmail.com"; 
 
       let partidoActualId = null;
       let jugadorActualId = null;
       let esTitularActual = false;
+      let mercadoAbierto = true;
 
       // --- 2. FUNCIONES DE UTILIDAD (UTILS) ---
       function generarBadgePrecio(actual, anterior) {
@@ -325,6 +355,13 @@
 
       function ordenPos(p) { return {'PORTERO':1,'DEFENSA':2,'MEDIO':3,'DELANTERO':4}[p] || 99; }
       function cerrarModal(id) { document.getElementById(id).classList.add('hidden'); }
+      
+      function formatTiempo(ms) {
+          const d = Math.floor(ms / (1000 * 60 * 60 * 24));
+          const h = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+          return `${d}d ${h}h ${m}m`;
+      }
 
       // --- 3. NAVEGACIÓN ---
       function cambiarPestaña(n) {
@@ -349,7 +386,7 @@
         else {
           document.getElementById("user-email").innerText = session.user.email;
           if(session.user.email === EMAIL_ADMIN) {
-            ['btn-admin-puntos','btn-admin-precios','btn-admin-fichajes','btn-crear-partido','admin-partido-controls'].forEach(id => {
+            ['btn-admin-puntos','btn-admin-precios','btn-admin-fichajes','btn-crear-partido','admin-partido-controls', 'btn-admin-recalc'].forEach(id => {
                 const el = document.getElementById(id); if(el) el.classList.remove('hidden');
             });
           }
@@ -365,15 +402,13 @@
         tabla.innerHTML = "";
         
         equipos.forEach((eq, index) => {
-          // --- AQUÍ ESTÁ EL ENLACE A LOS DETALLES DEL EQUIPO ---
           const clickEvento = `verEquipo(${eq.id}, '${eq.nombre_equipo.replace(/'/g, "\\'")}')`;
-          
           tabla.innerHTML += `
             <tr onclick="${clickEvento}" class="border-b hover:bg-blue-50 transition cursor-pointer">
                 <td class="p-4 font-bold text-gray-500">#${index + 1}</td>
                 <td class="p-4 font-bold text-lg text-gray-800">${eq.nombre_equipo}</td>
                 <td class="p-4 text-right text-green-600 font-mono font-bold">${(eq.presupuesto / 1000000).toFixed(0)}M €</td>
-                <td class="p-4 text-right font-bold text-blue-600 text-xl">${eq.puntos_totales} pts</td>
+                <td class="p-4 text-right font-bold text-blue-600 text-xl">${eq.puntos_totales.toFixed(1)} pts</td>
             </tr>`;
         });
       }
@@ -420,88 +455,177 @@
                       <td class="p-3 text-center text-gray-600 hidden sm:table-cell">${s.totalParadas > 0 ? s.totalParadas : '-'}</td>
                       <td class="p-3 text-center text-yellow-600 hidden sm:table-cell">${s.totalAma > 0 ? s.totalAma : '-'}</td>
                       <td class="p-3 text-center text-red-600 hidden sm:table-cell">${s.totalRojas > 0 ? s.totalRojas : '-'}</td>
-                      <td class="p-3 text-right font-black text-xl text-blue-800 bg-blue-50">${s.totalPuntos}</td>
+                      <td class="p-3 text-right font-black text-xl text-blue-800 bg-blue-50">${s.totalPuntos.toFixed(1)}</td>
                   </tr>
               `;
           });
       }
 
-      // --- 6. MERCADO ---
+      // --- 6. MERCADO Y TEMPORIZADOR ---
+      function actualizarEstadoMercado() {
+          const now = new Date();
+          const day = now.getDay(); 
+          const banner = document.getElementById('mercado-estado-banner');
+          const statusText = document.getElementById('mercado-status-text');
+          const timerText = document.getElementById('mercado-timer');
+          const grid = document.getElementById('grid-mercado-libres'); 
+          const grid2 = document.getElementById('grid-mercado-ocupados'); 
+
+          let isOpen = false;
+          let targetDate = new Date();
+          targetDate.setHours(0, 0, 0, 0);
+
+          if (day >= 1 && day <= 4) {
+              isOpen = true;
+              const daysUntilFriday = 5 - day;
+              targetDate.setDate(now.getDate() + daysUntilFriday);
+          } else {
+              isOpen = false;
+              let daysUntilMonday = 1;
+              if (day === 5) daysUntilMonday = 3; 
+              if (day === 6) daysUntilMonday = 2; 
+              if (day === 0) daysUntilMonday = 1; 
+              targetDate.setDate(now.getDate() + daysUntilMonday);
+          }
+
+          const diff = targetDate - now;
+          const timeLeft = formatTiempo(diff);
+          mercadoAbierto = isOpen;
+
+          if (isOpen) {
+              banner.className = "bg-green-100 p-3 rounded mb-4 text-center border border-green-300 shadow-sm";
+              statusText.innerHTML = "🟢 <span class='text-green-800'>MERCADO ABIERTO</span>";
+              timerText.innerText = "Cierra en: " + timeLeft;
+              if(grid) grid.classList.remove('mercado-cerrado');
+              if(grid2) grid2.classList.remove('mercado-cerrado');
+          } else {
+              banner.className = "bg-red-100 p-3 rounded mb-4 text-center border border-red-300 shadow-sm";
+              statusText.innerHTML = "🔴 <span class='text-red-800'>MERCADO CERRADO</span>";
+              timerText.innerText = "Abre en: " + timeLeft;
+              if(grid) grid.classList.add('mercado-cerrado');
+              if(grid2) grid2.classList.add('mercado-cerrado');
+          }
+      }
+
+      setInterval(actualizarEstadoMercado, 1000);
+
       async function cargarMercado() {
-        const grid = document.getElementById('grid-mercado'); 
-        grid.innerHTML = '<p class="text-center col-span-3 animate-pulse">Cargando...</p>';
+        actualizarEstadoMercado(); 
+        
+        const gridLibres = document.getElementById('grid-mercado-libres'); 
+        const gridOcupados = document.getElementById('grid-mercado-ocupados'); 
+        
+        gridLibres.innerHTML = '<p class="text-center col-span-3 animate-pulse">Cargando...</p>';
+        gridOcupados.innerHTML = '<p class="text-center col-span-3 animate-pulse">Cargando...</p>';
+
         const { data: { user } } = await _supabase.auth.getUser();
         const { data: eq } = await _supabase.from('equipos_fantasy').select('id, presupuesto').eq('usuario_id', user.id).single();
-        if(!eq) { grid.innerHTML = '<p class="text-center text-red-500 col-span-3">Crea equipo primero.</p>'; return; }
+        if(!eq) { gridLibres.innerHTML = '<p class="text-center text-red-500 col-span-3">Crea equipo primero.</p>'; gridOcupados.innerHTML = ''; return; }
         document.getElementById('mercado-presupuesto').innerText = (eq.presupuesto/1000000).toFixed(1) + ' M€';
 
-        const { data: oc } = await _supabase.from('plantilla').select('jugador_id');
-        const ocupados = oc ? oc.map(x => x.jugador_id) : [];
+        // 1. Dueños
+        const { data: plantilla } = await _supabase.from('plantilla').select('jugador_id, equipos_fantasy(nombre_equipo, id)');
+        const owners = {};
+        const ocupadosIds = [];
         
-        // --- AQUÍ ESTÁ EL CAMBIO PARA TRAER EL NOMBRE DEL EQUIPO LÍDER ---
+        if (plantilla) {
+            plantilla.forEach(p => {
+                owners[p.jugador_id] = {
+                    nombre: p.equipos_fantasy ? p.equipos_fantasy.nombre_equipo : 'Desconocido',
+                    id: p.equipos_fantasy ? p.equipos_fantasy.id : null
+                };
+                ocupadosIds.push(p.jugador_id);
+            });
+        }
+
+        // 2. Pujas
         const { data: p } = await _supabase.from('pujas').select('jugador_id, monto, equipo_id, equipos_fantasy(nombre_equipo)');
-        
         const pujas = {}; 
         if(p) {
             p.forEach(x => { 
                 if(!pujas[x.jugador_id]) pujas[x.jugador_id]={max:0,mi:0,lider:''}; 
-                
-                // Actualizar puja máxima y líder
                 if(x.monto > pujas[x.jugador_id].max) {
                     pujas[x.jugador_id].max = x.monto;
-                    pujas[x.jugador_id].lider = x.equipos_fantasy ? x.equipos_fantasy.nombre_equipo : 'Desconocido';
+                    pujas[x.jugador_id].lider = x.equipos_fantasy ? x.equipos_fantasy.nombre_equipo : 'Desc.';
                 }
-                
                 if(x.equipo_id === eq.id) pujas[x.jugador_id].mi = x.monto; 
             });
         }
 
+        // 3. Puntos y Render
         const { data: acts } = await _supabase.from('actuaciones').select('jugador_id, puntos_calculados');
         const pts = {}; if(acts) acts.forEach(a => { if(!pts[a.jugador_id]) pts[a.jugador_id]=0; pts[a.jugador_id]+=a.puntos_calculados; });
         
         const { data: all, error } = await _supabase.from('jugadores').select('*').order('precio', { ascending: false });
-        if(error || !all || !all.length) { grid.innerHTML = '<p class="text-center col-span-3 text-red-500">Base de datos vacía.</p>'; return; }
+        if(error || !all || !all.length) { gridLibres.innerHTML = '<p class="text-center col-span-3 text-red-500">Base de datos vacía.</p>'; return; }
         
-        const libres = all.filter(j => !ocupados.includes(j.id));
-        grid.innerHTML = '';
-        if(!libres.length) { grid.innerHTML = '<p class="text-center col-span-3">Mercado vacío.</p>'; return; }
+        gridLibres.innerHTML = '';
+        gridOcupados.innerHTML = '';
 
-        libres.forEach(j => {
+        let hayLibres = false;
+        let hayOcupados = false;
+
+        all.forEach(j => {
             const inf = pujas[j.id] || {max:0,mi:0,lider:''};
-            
-            // Texto del líder de la puja
             const textoLider = inf.max > 0 ? `<span class="text-[10px] text-gray-500 font-normal ml-1">(${inf.lider})</span>` : '';
+            const puntos = pts[j.id] ? pts[j.id].toFixed(1) : 0;
 
-            grid.innerHTML += `
-            <div class="bg-white rounded-lg shadow-md p-4 border-l-4 ${getColorBorde(j.posicion)} ${inf.mi>0?'ring-2 ring-purple-500':''} flex flex-col gap-3">
-                <div class="flex gap-3"><div class="w-14 h-14 rounded-full bg-gray-200 overflow-hidden"><img src="${j.foto_url}" class="w-full h-full object-cover"></div><div class="w-full"><div class="flex justify-between"><div><p class="text-[10px] font-bold text-gray-400">${j.posicion}</p><div class="flex items-center"><h3 class="font-bold text-sm">${j.nombre}</h3>${generarBadgePrecio(j.precio, j.precio_anterior)}</div></div><div class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold">🎯 ${pts[j.id]||0}</div></div><div class="grid grid-cols-2 gap-2 mt-2 text-xs bg-gray-50 p-2 rounded"><div><p class="text-gray-400">Valor</p><p class="font-bold">${(j.precio/1000000).toFixed(1)} M€</p></div><div><p class="text-orange-500 font-bold">🔥 Max ${textoLider}</p><p class="font-bold">${inf.max>0?(inf.max/1000000).toFixed(1)+'M':'-'}</p></div></div><p class="text-[10px] text-red-500 font-bold mt-1 text-right">⚡ ${(j.precio*1.5/1000000).toFixed(1)} M€</p></div></div>
-                <div class="flex gap-2 border-t pt-2"><input type="number" id="inp-${j.id}" class="w-full text-sm border rounded px-1" value="${j.precio}"><button onclick="realizarPuja(${j.id}, '${j.nombre.replace(/'/g,"\\'")}', ${j.precio})" class="bg-purple-600 text-white text-xs font-bold px-3 rounded">Pujar</button></div>
+            const cartaHTML = (tipo, ownerName = null, ownerId = null) => `
+            <div class="bg-white rounded-lg shadow-md p-4 border-l-4 ${getColorBorde(j.posicion)} ${inf.mi>0?'ring-2 ring-purple-500':''} flex flex-col gap-3 relative">
+                ${ownerName ? `<div class="absolute top-2 right-2 bg-gray-100 text-gray-600 text-[10px] px-2 py-1 rounded font-bold border">👤 ${ownerName}</div>` : ''}
+                <div onclick="abrirModalJugador(${j.id}, '${j.nombre.replace(/'/g,"\\'")}', '${j.posicion}', ${j.precio}, '${j.foto_url}', false)" class="flex gap-3 cursor-pointer">
+                    <div class="w-14 h-14 rounded-full bg-gray-200 overflow-hidden"><img src="${j.foto_url}" class="w-full h-full object-cover"></div>
+                    <div class="w-full">
+                        <div class="flex justify-between mt-1">
+                            <div>
+                                <p class="text-[10px] font-bold text-gray-400">${j.posicion}</p>
+                                <div class="flex items-center"><h3 class="font-bold text-sm hover:text-blue-600">${j.nombre}</h3>${generarBadgePrecio(j.precio, j.precio_anterior)}</div>
+                            </div>
+                            <div class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold h-fit">🎯 ${puntos}</div>
+                        </div>
+                        ${tipo === 'libre' ? 
+                        `<div class="grid grid-cols-2 gap-2 mt-2 text-xs bg-gray-50 p-2 rounded"><div><p class="text-gray-400">Valor</p><p class="font-bold">${(j.precio/1000000).toFixed(1)} M€</p></div><div><p class="text-orange-500 font-bold">🔥 Max ${textoLider}</p><p class="font-bold">${inf.max>0?(inf.max/1000000).toFixed(1)+'M':'-'}</p></div></div>` :
+                        `<div class="mt-2 text-xs bg-gray-50 p-2 rounded"><div class="flex justify-between"><span class="text-gray-400">Valor:</span><span class="font-bold">${(j.precio/1000000).toFixed(1)} M€</span></div><div class="flex justify-between text-red-600 font-bold"><span>Cláusula:</span><span>${(j.precio*1.5/1000000).toFixed(1)} M€</span></div></div>`
+                        }
+                    </div>
+                </div>
+                <div class="flex gap-2 border-t pt-2">
+                    ${tipo === 'libre' ? 
+                    `<input type="number" id="inp-${j.id}" class="w-full text-sm border rounded px-1" value="${j.precio}" placeholder="Min: ${(j.precio/2000000).toFixed(1)}M"><button onclick="realizarPuja(${j.id}, '${j.nombre.replace(/'/g,"\\'")}', ${j.precio})" class="bg-purple-600 text-white text-xs font-bold px-3 rounded hover:bg-purple-700 transition">Pujar</button>` :
+                    `<button onclick="abrirModalCompraRival(${j.id}, '${j.nombre.replace(/'/g,"\\'")}', ${j.precio}, ${ownerId})" class="w-full bg-green-600 text-white text-xs font-bold px-3 py-2 rounded hover:bg-green-700 transition flex items-center justify-center gap-1">💸 Ofertar / Robar</button>`
+                    }
+                </div>
             </div>`;
+
+            if (ocupadosIds.includes(j.id)) {
+                const owner = owners[j.id];
+                if (owner.id !== eq.id) {
+                    gridOcupados.innerHTML += cartaHTML('ocupado', owner.nombre, owner.id);
+                    hayOcupados = true;
+                }
+            } else {
+                gridLibres.innerHTML += cartaHTML('libre');
+                hayLibres = true;
+            }
         });
+
+        if (!hayLibres) gridLibres.innerHTML = '<p class="text-center col-span-3 text-gray-400 italic">No hay jugadores libres.</p>';
+        if (!hayOcupados) gridOcupados.innerHTML = '<p class="text-center col-span-3 text-gray-400 italic">No hay jugadores de rivales disponibles.</p>';
       }
 
       async function realizarPuja(id, n, v) {
+          if (!mercadoAbierto) return alert("⛔ El mercado está CERRADO. Vuelve el lunes.");
           const m = parseInt(document.getElementById(`inp-${id}`).value);
           const minBid = v / 2;
-
-          if (m < minBid) {
-              return alert(`La puja mínima es la mitad de su valor: ${(minBid/1000000).toFixed(2)} M€`);
-          }
+          if (m < minBid) return alert(`⛔ La puja mínima es: ${(minBid/1000000).toFixed(2)} M€`);
 
           const { data: { user } } = await _supabase.auth.getUser();
           const { data: eq } = await _supabase.from('equipos_fantasy').select('id, presupuesto').eq('usuario_id', user.id).single();
-          if(eq.presupuesto < m) return alert("Sin fondos.");
+          if(eq.presupuesto < m) return alert("⛔ No tienes suficiente dinero.");
           
-          if(m >= v*1.5) { 
-              if(!confirm("¿Clausulazo?")) return;
-              await _supabase.from('equipos_fantasy').update({ presupuesto: eq.presupuesto-m }).eq('id',eq.id);
-              await _supabase.from('plantilla').insert({ equipo_id: eq.id, jugador_id: id, es_titular: false });
-              await _supabase.from('pujas').delete().eq('jugador_id', id);
-              alert("Fichado!"); cargarMercado(); return;
-          }
           await _supabase.from('pujas').delete().eq('equipo_id', eq.id).eq('jugador_id', id);
           await _supabase.from('pujas').insert({ equipo_id: eq.id, jugador_id: id, monto: m });
-          alert("Puja OK"); cargarMercado();
+          alert("✅ Puja realizada."); cargarMercado();
       }
 
       async function resolverMercado() {
@@ -520,7 +644,7 @@
       }
 
       async function actualizarPreciosSemana() {
-          if (!confirm("⚠️ ADMIN: ¿Simular cambio de precios (-5% a +10%)?")) return;
+          if (!confirm("⚠️ ADMIN: ¿Simular precios?")) return;
           const { data: jugadores } = await _supabase.from('jugadores').select('*');
           for (const j of jugadores) {
               const factor = 0.95 + Math.random() * 0.15;
@@ -535,7 +659,7 @@
           const lista = document.getElementById('lista-partidos');
           lista.innerHTML = '<p class="text-center text-gray-500">Cargando...</p>';
           const { data: partidos } = await _supabase.from('partidos').select('*').order('jornada').order('fecha');
-          if(!partidos || partidos.length === 0) { lista.innerHTML = '<p class="text-center text-gray-400">No hay partidos programados.</p>'; return; }
+          if(!partidos || partidos.length === 0) { lista.innerHTML = '<p class="text-center text-gray-400">No hay partidos.</p>'; return; }
           const porJornada = {}; partidos.forEach(p => { if(!porJornada[p.jornada]) porJornada[p.jornada] = []; porJornada[p.jornada].push(p); });
           lista.innerHTML = '';
           Object.keys(porJornada).forEach(j => {
@@ -576,33 +700,42 @@
       }
 
       // --- 8. ÁRBITRO, RANKING, PLANTILLA ---
-      async function abrirGestorPuntos() { document.getElementById('modal-puntos').classList.remove('hidden'); const s = document.getElementById('select-jugador-puntos'); const { data: j } = await _supabase.from('jugadores').select('id, nombre, posicion').order('nombre'); s.innerHTML = '<option value="" data-pos="">-- Elige --</option>'; j.forEach(x => s.innerHTML += `<option value="${x.id}" data-pos="${x.posicion}">${x.nombre} (${x.posicion})</option>`); ['goles','asist','paradas','ama','roja','encajados'].forEach(k => document.getElementById('stats-'+k).value=0); calcularPuntosEnVivo(); }
+      async function abrirGestorPuntos() { document.getElementById('modal-puntos').classList.remove('hidden'); const s = document.getElementById('select-jugador-puntos'); const { data: j } = await _supabase.from('jugadores').select('id, nombre, posicion').order('nombre'); s.innerHTML = '<option value="" data-pos="">-- Elige --</option>'; j.forEach(x => s.innerHTML += `<option value="${x.id}" data-pos="${x.posicion}">${x.nombre} (${x.posicion})</option>`); ['goles','asist','paradas','ama','roja','encajados','recuperaciones'].forEach(k => document.getElementById('stats-'+k).value=0); calcularPuntosEnVivo(); }
       
-      function calcularPuntosEnVivo() { 
-          const s = document.getElementById('select-jugador-puntos'); 
-          const pos = s.options[s.selectedIndex].getAttribute('data-pos'); 
-          let vg=4, vp=5, ve=0; // Valor Gol, Valor Parada, Valor Encajado
-          if(pos==='MEDIO') vg=6; 
-          if(pos==='DEFENSA') { vg=10; ve=1; } 
-          if(pos==='PORTERO') { vg=20; vp=1; ve=1; } 
-          document.getElementById('info-bonus-posicion').innerText = pos ? `Gol: +${vg}` : '...'; 
-          const g = parseInt(document.getElementById('stats-goles').value)||0;
-          const a = parseInt(document.getElementById('stats-asist').value)||0;
-          const p = parseInt(document.getElementById('stats-paradas').value)||0;
-          const y = parseInt(document.getElementById('stats-ama').value)||0;
-          const r = parseInt(document.getElementById('stats-roja').value)||0;
-          const enc = parseInt(document.getElementById('stats-encajados').value)||0;
+      // --- FÓRMULA DE PUNTUACIÓN ---
+      function calcularFormula(stats, pos) {
+          let vg = 4, ve = 0, v_recup = 0.5; let vp = 0.89;
+          if (pos === 'MEDIO') { vg = 5; v_recup = 1; }
+          if (pos === 'DEFENSA') { vg = 6; ve = 0.5; v_recup = 2; }
+          if (pos === 'PORTERO') { vg = 9; ve = 0.5; vp = 0.5; v_recup = 2; }
 
-          const t = 2 + (g*vg) + (a*3) + (p*vp) - (y*2) - (r*5) - (enc*ve); 
-          const prev = document.getElementById('puntos-preview'); 
-          prev.innerText = t; 
-          prev.className = t>=0 ? "text-2xl font-black text-blue-600" : "text-2xl font-black text-red-600"; 
+          const total = 2 + (stats.goles * vg) + (stats.asistencias * 3) + (stats.paradas * vp) + (stats.recuperaciones * v_recup) - (stats.amarillas * 2) - (stats.rojas * 5) - (stats.goles_encajados * ve);
+          return Math.round(total * 100) / 100;
+      }
+
+      function calcularPuntosEnVivo() {
+          const s = document.getElementById('select-jugador-puntos');
+          const pos = s.options[s.selectedIndex].getAttribute('data-pos');
+          const stats = {
+              goles: parseInt(document.getElementById('stats-goles').value)||0,
+              asistencias: parseInt(document.getElementById('stats-asist').value)||0,
+              paradas: parseInt(document.getElementById('stats-paradas').value)||0,
+              amarillas: parseInt(document.getElementById('stats-ama').value)||0,
+              rojas: parseInt(document.getElementById('stats-roja').value)||0,
+              goles_encajados: parseInt(document.getElementById('stats-encajados').value)||0,
+              recuperaciones: parseInt(document.getElementById('stats-recuperaciones').value)||0
+          };
+          const t = calcularFormula(stats, pos);
+          const prev = document.getElementById('puntos-preview');
+          prev.innerText = t;
+          prev.className = t >= 0 ? "text-2xl font-black text-blue-600" : "text-2xl font-black text-red-600";
+          document.getElementById('info-bonus-posicion').innerText = `Gol: +${pos==='DEFENSA'?6:4}`;
       }
 
       async function guardarPuntos() { 
           const jId = document.getElementById('select-jugador-puntos').value; 
           if(!jId) return alert("Elige jugador"); 
-          const pts = parseInt(document.getElementById('puntos-preview').innerText); 
+          const pts = parseFloat(document.getElementById('puntos-preview').innerText); 
           await _supabase.from('actuaciones').insert({ 
               jugador_id: jId, puntos_calculados: pts, 
               goles: document.getElementById('stats-goles').value, 
@@ -610,202 +743,62 @@
               paradas: document.getElementById('stats-paradas').value, 
               amarillas: document.getElementById('stats-ama').value, 
               rojas: document.getElementById('stats-roja').value,
-              goles_encajados: document.getElementById('stats-encajados').value 
+              goles_encajados: document.getElementById('stats-encajados').value,
+              recuperaciones: document.getElementById('stats-recuperaciones').value 
           }); 
           const { data: f } = await _supabase.from('plantilla').select('equipo_id').eq('jugador_id', jId).maybeSingle(); 
           if(f) { 
               const { data: eq } = await _supabase.from('equipos_fantasy').select('id, puntos_totales, nombre_equipo').eq('id', f.equipo_id).single(); 
-              await _supabase.from('equipos_fantasy').update({ puntos_totales: eq.puntos_totales + pts }).eq('id', eq.id); 
+              const nuevosPuntos = (eq.puntos_totales || 0) + pts;
+              await _supabase.from('equipos_fantasy').update({ puntos_totales: nuevosPuntos }).eq('id', eq.id); 
               alert(`✅ +${pts} a ${eq.nombre_equipo}`); 
           } else { alert("✅ Puntos guardados"); } 
-          ['goles','asist','paradas','ama','roja','encajados'].forEach(k => document.getElementById('stats-'+k).value=0); 
+          ['goles','asist','paradas','ama','roja','encajados','recuperaciones'].forEach(k => document.getElementById('stats-'+k).value=0); 
           calcularPuntosEnVivo(); cargarRanking(); 
       }
 
-      // --- 9. PLANTILLA (CARGAR PLANTILLA CORREGIDA) ---
-      async function cargarPlantilla() { 
-          // 1. Obtener Usuario
-          const { data: { user } } = await _supabase.auth.getUser();
-          if (!user) return;
+      // --- RECALCULAR ---
+      async function recalcularTodo() {
+          if (!confirm("⚠️ ¿Estás seguro?")) return;
+          console.log("Iniciando recálculo...");
+          await _supabase.from('equipos_fantasy').update({ puntos_totales: 0 }).neq('id', 0);
+          const { data: actuaciones } = await _supabase.from('actuaciones').select('*');
+          const { data: jugadores } = await _supabase.from('jugadores').select('id, posicion');
+          const { data: plantilla } = await _supabase.from('plantilla').select('equipo_id, jugador_id');
+          if (!actuaciones || !jugadores || !plantilla) return alert("Error leyendo datos.");
 
-          // 2. Obtener Mi Equipo
-          const { data: miEquipo, error: errorEquipo } = await _supabase
-              .from("equipos_fantasy")
-              .select("id, presupuesto")
-              .eq("usuario_id", user.id)
-              .maybeSingle();
+          const mapaPosicion = {}; jugadores.forEach(j => mapaPosicion[j.id] = j.posicion);
+          const mapaEquipo = {}; plantilla.forEach(p => mapaEquipo[p.jugador_id] = p.equipo_id);
+          const puntosPorEquipo = {};
 
-          if (errorEquipo) {
-              console.error("Error buscando equipo:", errorEquipo);
-              alert("Error de conexión: " + errorEquipo.message);
-              return;
-          }
-
-          // Si no tiene equipo, mostrar botón de crear
-          if (!miEquipo) {
-              document.getElementById('campo-titulares').innerHTML = `
-                  <div class="text-center mt-10">
-                      <p class="text-white mb-4">No tienes equipo todavía.</p>
-                      <button onclick="crearEquipoNuevo()" class="bg-white text-green-700 px-6 py-3 rounded-full font-bold shadow-lg transform hover:scale-105 transition">
-                          ✨ Crear Equipo Ahora
-                      </button>
-                  </div>`;
-              document.getElementById('valor-plantilla').innerText = "0 M€";
-              return; 
-          }
-
-          // 3. Cargar Buzón (Ofertas)
-          await cargarOfertasRecibidas(miEquipo.id);
-
-          // 4. Cargar Jugadores (Plantilla)
-          try {
-              const { data: plantilla, error: errorPlantilla } = await _supabase
-                  .from("plantilla")
-                  .select(`
-                      es_titular, 
-                      jugadores (
-                          id, nombre, posicion, precio, precio_anterior, foto_url
-                      )
-                  `)
-                  .eq("equipo_id", miEquipo.id);
-
-              if (errorPlantilla) throw errorPlantilla;
-
-              // Calcular Valor y Separar
-              let valorTotal = 0;
-              const titulares = [];
-              const suplentes = [];
-
-              if (plantilla && plantilla.length > 0) {
-                  plantilla.forEach(p => {
-                      if(p.jugadores) {
-                          valorTotal += p.jugadores.precio;
-                          if(p.es_titular) titulares.push(p);
-                          else suplentes.push(p);
-                      }
-                  });
+          for (const acta of actuaciones) {
+              const pos = mapaPosicion[acta.jugador_id];
+              const nuevosPuntos = calcularFormula(acta, pos);
+              await _supabase.from('actuaciones').update({ puntos_calculados: nuevosPuntos }).eq('id', acta.id);
+              const eqId = mapaEquipo[acta.jugador_id];
+              if (eqId) {
+                  if (!puntosPorEquipo[eqId]) puntosPorEquipo[eqId] = 0;
+                  puntosPorEquipo[eqId] += nuevosPuntos;
               }
-
-              // Ordenar
-              titulares.sort((a, b) => ordenPos(a.jugadores.posicion) - ordenPos(b.jugadores.posicion));
-              suplentes.sort((a, b) => ordenPos(a.jugadores.posicion) - ordenPos(b.jugadores.posicion));
-
-              // Render
-              const render = (p, esTit) => {
-                  const j = p.jugadores;
-                  const badge = generarBadgePrecio(j.precio, j.precio_anterior);
-                  const nombreSafe = j.nombre.replace(/'/g, "\\'");
-                  const foto = j.foto_url || "https://via.placeholder.com/150";
-                  const datosJugador = `abrirModalJugador(${j.id}, '${nombreSafe}', '${j.posicion}', ${j.precio}, '${foto}', ${esTit})`;
-                  
-                  return `
-                      <div onclick="${datosJugador}" class="mx-auto w-full transform hover:scale-105 transition cursor-pointer flex items-center bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border-l-4 ${getColorBorde(j.posicion)}">
-                          <div class="w-12 h-12 rounded-full bg-gray-200 overflow-hidden mr-3 border border-gray-300">
-                              <img src="${foto}" class="w-full h-full object-cover">
-                          </div>
-                          <div class="flex-1 flex justify-between items-center">
-                              <div>
-                                  <p class="text-[10px] font-bold text-gray-500 uppercase">${j.posicion}</p>
-                                  <div class="flex items-center">
-                                      <h4 class="font-bold text-gray-900 leading-none text-sm">${j.nombre}</h4>
-                                      ${badge}
-                                  </div>
-                              </div>
-                              <div class="text-right">
-                                  <span class="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-bold border">
-                                      ${esTit ? "TITULAR" : "BANCA"}
-                                  </span>
-                              </div>
-                          </div>
-                      </div>`;
-              };
-
-              const htmlTitulares = titulares.length ? titulares.map(p => render(p, true)).join('') : '<p class="text-white text-center italic opacity-70">Alineación vacía</p>';
-              const htmlSuplentes = suplentes.length ? suplentes.map(p => render(p, false)).join('') : '<p class="text-gray-400 text-center text-sm italic">Banquillo vacío</p>';
-
-              document.getElementById("campo-titulares").innerHTML = htmlTitulares;
-              document.getElementById("grid-suplentes").innerHTML = htmlSuplentes;
-              document.getElementById("valor-plantilla").innerText = (valorTotal / 1000000).toFixed(1) + " M€";
-
-          } catch (err) {
-              console.error("Error crítico cargando plantilla:", err);
-              document.getElementById("campo-titulares").innerHTML = `<p class="text-red-300 text-center bg-red-900/50 p-2 rounded">Error: ${err.message}</p>`;
           }
-      }
-
-      // --- 10. INTERACCIÓN RIVALES ---
-      async function verEquipo(eqId, n) {
-        const { data: { user } } = await _supabase.auth.getUser();
-        const { data: me } = await _supabase.from("equipos_fantasy").select("id").eq("usuario_id", user.id).single();
-        const modal = document.getElementById('modal-equipo');
-        document.getElementById('modal-equipo-nombre').innerText = n + (me.id===eqId?" (Tú)":"");
-        modal.classList.remove('hidden');
-        const { data: p } = await _supabase.from('plantilla').select('jugadores (id, nombre, posicion, foto_url, precio, precio_anterior)').eq('equipo_id', eqId);
-        const l = document.getElementById('modal-equipo-lista'); l.innerHTML='';
-        
-        const ids = p.map(x=>x.jugadores.id);
-        const { data: a } = await _supabase.from('actuaciones').select('jugador_id, puntos_calculados').in('jugador_id',ids);
-        const pts = {}; if(a) a.forEach(x=>{ if(!pts[x.jugador_id]) pts[x.jugador_id]=0; pts[x.jugador_id]+=x.puntos_calculados; });
-
-        p.sort((a,b)=>ordenPos(a.jugadores.posicion)-ordenPos(b.jugadores.posicion)).forEach(x => {
-            const j = x.jugadores;
-            // Botón de compra solo si no es tu equipo
-            let btn = me.id!==eqId ? `<button onclick="abrirModalCompraRival(${j.id}, '${j.nombre.replace(/'/g,"\\'")}', ${j.precio}, ${eqId})" class="ml-2 text-green-600 font-bold bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition">💸 Fichar</button>` : '';
-            l.innerHTML += `
-                <div class="flex justify-between items-center p-3 border-b hover:bg-gray-50 transition">
-                    <div class="flex items-center gap-3">
-                        <img src="${j.foto_url}" class="w-10 h-10 rounded-full bg-gray-200 border object-cover">
-                        <div>
-                            <p class="text-[10px] font-bold text-gray-500 uppercase">${j.posicion}</p>
-                            <p class="font-bold text-gray-800 text-sm leading-tight">${j.nombre}</p>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold shadow-sm">${pts[j.id]||0} pts</span>
-                        ${btn}
-                    </div>
-                </div>`;
-        });
-      }
-
-      function abrirModalCompraRival(id, n, p, d) {
-          document.getElementById('rival-nombre-jugador').innerText=n;
-          document.getElementById('rival-precio-valor').innerText=(p/1000000).toFixed(1)+"M";
-          document.getElementById('rival-precio-clausula').innerText=(p*1.5/1000000).toFixed(1)+"M";
-          document.getElementById('input-oferta-rival').value=p*1.5;
-          document.getElementById('btn-confirmar-compra-rival').onclick=()=>ejecutarCompraRival(id,n,p,d);
-          document.getElementById('modal-compra-rival').classList.remove('hidden');
-      }
-
-      async function ejecutarCompraRival(id, n, p, d) {
-          const m = parseInt(document.getElementById('input-oferta-rival').value);
-          const cl = p*1.5;
-          const { data: { user } } = await _supabase.auth.getUser();
-          const { data: yo } = await _supabase.from('equipos_fantasy').select('id, presupuesto').eq('usuario_id', user.id).single();
-          if(yo.presupuesto < m) return alert("Sin dinero");
-          
-          if(m >= cl) {
-              if(!confirm("¿Clausulazo?")) return;
-              const { data: el } = await _supabase.from('equipos_fantasy').select('presupuesto').eq('id', d).single();
-              await _supabase.from('equipos_fantasy').update({ presupuesto: yo.presupuesto - m }).eq('id', yo.id);
-              await _supabase.from('equipos_fantasy').update({ presupuesto: el.presupuesto + m }).eq('id', d);
-              await _supabase.from('plantilla').delete().match({ equipo_id: d, jugador_id: id });
-              await _supabase.from('plantilla').insert({ equipo_id: yo.id, jugador_id: id, es_titular: false });
-              await _supabase.from('pujas').delete().eq('jugador_id', id);
-              alert("Robado!"); cerrarModal('modal-compra-rival'); cerrarModal('modal-equipo'); cargarRanking();
-          } else {
-              await _supabase.from('pujas').insert({ equipo_id: yo.id, jugador_id: id, monto: m });
-              alert("Oferta enviada"); cerrarModal('modal-compra-rival');
+          for (const [eqId, total] of Object.entries(puntosPorEquipo)) {
+              const totalRedondeado = Math.round(total * 100) / 100;
+              await _supabase.from('equipos_fantasy').update({ puntos_totales: totalRedondeado }).eq('id', eqId);
           }
+          alert("✅ Recalculado."); cargarRanking(); cargarEstadisticas();
       }
 
-      // --- 11. MODAL JUGADOR PROPIO Y PLANTILLA ---
-      function abrirModalJugador(id, n, pos, p, f, tit) { 
+      // --- MODAL JUGADOR ACTUALIZADO (CON FETCH STATS) ---
+      async function abrirModalJugador(id, n, pos, p, f, tit) { 
           jugadorActualId = id; esTitularActual = tit; 
           document.getElementById('modal-nombre').innerText = n; 
           document.getElementById('modal-posicion').innerText = pos; 
           document.getElementById('modal-precio').innerText = (p/1000000).toFixed(1) + " M€"; 
           document.getElementById('modal-foto').src = f; 
+          
+          // Resetear stats visuales a 0
+          ['goles','asist','robos','puntos'].forEach(k => document.getElementById(`modal-stat-${k}`).innerText = "...");
+
           const b = document.getElementById('btn-titular'); 
           b.innerText = tit ? "⬇️ Banquillo" : "⬆️ Titular"; 
           b.onclick = () => cambiarEstado(!tit); 
@@ -813,7 +806,21 @@
           const st = document.getElementById('modal-estado'); 
           st.innerText = tit ? "🟢 TITULAR" : "⚪ SUPLENTE"; 
           st.className = tit ? "px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800" : "px-3 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-600"; 
-          document.getElementById('modal-jugador').classList.remove('hidden'); 
+          document.getElementById('modal-jugador').classList.remove('hidden');
+
+          // Fetch Stats
+          const { data: acts } = await _supabase.from('actuaciones').select('*').eq('jugador_id', id);
+          if(acts) {
+              const tG = acts.reduce((s, a) => s + (a.goles || 0), 0);
+              const tA = acts.reduce((s, a) => s + (a.asistencias || 0), 0);
+              const tR = acts.reduce((s, a) => s + (a.recuperaciones || 0), 0);
+              const tP = acts.reduce((s, a) => s + (a.puntos_calculados || 0), 0);
+              
+              document.getElementById('modal-stat-goles').innerText = tG;
+              document.getElementById('modal-stat-asist').innerText = tA;
+              document.getElementById('modal-stat-robos').innerText = tR;
+              document.getElementById('modal-stat-puntos').innerText = tP.toFixed(1);
+          }
       }
 
       async function cambiarEstado(n) { 
@@ -845,21 +852,13 @@
           const box = document.getElementById('buzon-ofertas'); 
           const list = document.getElementById('lista-ofertas'); 
           list.innerHTML = '';
-          
           try {
               const { data: pl } = await _supabase.from('plantilla').select('jugador_id').eq('equipo_id', eqId);
               if(!pl || !pl.length) return; 
-              
               const ids = pl.map(x => x.jugador_id); 
               const { data: ofs } = await _supabase.from('pujas').select('id, monto, equipo_id, jugador_id').in('jugador_id', ids); 
-              
-              if(!ofs || !ofs.length) { 
-                  box.classList.add('hidden'); 
-                  return; 
-              } 
-              
+              if(!ofs || !ofs.length) { box.classList.add('hidden'); return; } 
               box.classList.remove('hidden'); 
-              
               for(const o of ofs) { 
                   const { data: riv } = await _supabase.from('equipos_fantasy').select('nombre_equipo').eq('id', o.equipo_id).single(); 
                   const { data: jug } = await _supabase.from('jugadores').select('nombre').eq('id', o.jugador_id).single(); 
