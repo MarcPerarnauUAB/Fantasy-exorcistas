@@ -147,17 +147,16 @@
       </div>
 
       <div id="seccion-mercado" class="bloque-contenido hidden">
-        
         <div id="mercado-estado-banner" class="bg-gray-100 p-3 rounded mb-4 text-center border border-gray-300">
             <h3 id="mercado-status-text" class="font-bold text-lg">Cargando estado...</h3>
             <p id="mercado-timer" class="text-sm font-mono">--:--:--</p>
         </div>
+
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 sticky top-16 bg-gray-100 z-40 py-4 gap-4">
             <div>
                 <h2 class="text-2xl font-bold text-gray-800">💰 Mercado de Fichajes</h2>
                 <p class="text-xs text-gray-500">Puja mínima: 50%. Cláusula: 150%.</p>
             </div>
-            
             <div class="flex gap-2 items-center flex-wrap justify-end">
                 <button id="btn-admin-precios" onclick="actualizarPreciosSemana()" class="hidden bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded shadow border border-blue-800 flex items-center gap-1">🔄 Precios</button>
                 <button id="btn-admin-fichajes" onclick="resolverMercado()" class="hidden bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-2 rounded shadow border border-purple-800 flex items-center gap-1">⚡ Fichajes</button>
@@ -177,7 +176,6 @@
                     <p class="text-center text-gray-500 col-span-3 animate-pulse">Analizando...</p>
                 </div>
             </div>
-            
             <div>
                 <h3 class="font-bold text-red-800 text-lg mb-4 flex items-center gap-2 border-b border-red-200 pb-2">
                     <span class="bg-red-100 p-1 rounded">🔴</span> Jugadores con Contrato (Cláusulazos)
@@ -881,6 +879,117 @@
           await _supabase.from('plantilla').insert({ equipo_id: comp.id, jugador_id: p.jugador_id, es_titular: false }); 
           await _supabase.from('pujas').delete().eq('jugador_id', p.jugador_id); 
           alert("Vendido!"); cargarPlantilla(); 
+      }
+
+      // --- 11. CARGAR PLANTILLA PROPIA ---
+      async function cargarPlantilla() { 
+          // 1. Obtener Usuario
+          const { data: { user } } = await _supabase.auth.getUser();
+          if (!user) return;
+
+          // 2. Obtener Mi Equipo
+          const { data: miEquipo, error: errorEquipo } = await _supabase
+              .from("equipos_fantasy")
+              .select("id, presupuesto")
+              .eq("usuario_id", user.id)
+              .maybeSingle();
+
+          if (errorEquipo) {
+              console.error("Error buscando equipo:", errorEquipo);
+              alert("Error de conexión: " + errorEquipo.message);
+              return;
+          }
+
+          // Si no tiene equipo, mostrar botón de crear
+          if (!miEquipo) {
+              document.getElementById('campo-titulares').innerHTML = `
+                  <div class="text-center mt-10">
+                      <p class="text-white mb-4">No tienes equipo todavía.</p>
+                      <button onclick="crearEquipoNuevo()" class="bg-white text-green-700 px-6 py-3 rounded-full font-bold shadow-lg transform hover:scale-105 transition">
+                          ✨ Crear Equipo Ahora
+                      </button>
+                  </div>`;
+              document.getElementById('valor-plantilla').innerText = "0 M€";
+              return; 
+          }
+
+          // 3. Cargar Buzón (Ofertas)
+          await cargarOfertasRecibidas(miEquipo.id);
+
+          // 4. Cargar Jugadores (Plantilla)
+          try {
+              const { data: plantilla, error: errorPlantilla } = await _supabase
+                  .from("plantilla")
+                  .select(`
+                      es_titular, 
+                      jugadores (
+                          id, nombre, posicion, precio, precio_anterior, foto_url
+                      )
+                  `)
+                  .eq("equipo_id", miEquipo.id);
+
+              if (errorPlantilla) throw errorPlantilla;
+
+              // Calcular Valor y Separar
+              let valorTotal = 0;
+              const titulares = [];
+              const suplentes = [];
+
+              if (plantilla && plantilla.length > 0) {
+                  plantilla.forEach(p => {
+                      if(p.jugadores) {
+                          valorTotal += p.jugadores.precio;
+                          if(p.es_titular) titulares.push(p);
+                          else suplentes.push(p);
+                      }
+                  });
+              }
+
+              // Ordenar
+              titulares.sort((a, b) => ordenPos(a.jugadores.posicion) - ordenPos(b.jugadores.posicion));
+              suplentes.sort((a, b) => ordenPos(a.jugadores.posicion) - ordenPos(b.jugadores.posicion));
+
+              // Render
+              const render = (p, esTit) => {
+                  const j = p.jugadores;
+                  const badge = generarBadgePrecio(j.precio, j.precio_anterior);
+                  const nombreSafe = j.nombre.replace(/'/g, "\\'");
+                  const foto = j.foto_url || "https://via.placeholder.com/150";
+                  const datosJugador = `abrirModalJugador(${j.id}, '${nombreSafe}', '${j.posicion}', ${j.precio}, '${foto}', ${esTit})`;
+                  
+                  return `
+                      <div onclick="${datosJugador}" class="mx-auto w-full transform hover:scale-105 transition cursor-pointer flex items-center bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border-l-4 ${getColorBorde(j.posicion)}">
+                          <div class="w-12 h-12 rounded-full bg-gray-200 overflow-hidden mr-3 border border-gray-300">
+                              <img src="${foto}" class="w-full h-full object-cover">
+                          </div>
+                          <div class="flex-1 flex justify-between items-center">
+                              <div>
+                                  <p class="text-[10px] font-bold text-gray-500 uppercase">${j.posicion}</p>
+                                  <div class="flex items-center">
+                                      <h4 class="font-bold text-gray-900 leading-none text-sm">${j.nombre}</h4>
+                                      ${badge}
+                                  </div>
+                              </div>
+                              <div class="text-right">
+                                  <span class="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-bold border">
+                                      ${esTit ? "TITULAR" : "BANCA"}
+                                  </span>
+                              </div>
+                          </div>
+                      </div>`;
+              };
+
+              const htmlTitulares = titulares.length ? titulares.map(p => render(p, true)).join('') : '<p class="text-white text-center italic opacity-70">Alineación vacía</p>';
+              const htmlSuplentes = suplentes.length ? suplentes.map(p => render(p, false)).join('') : '<p class="text-gray-400 text-center text-sm italic">Banquillo vacío</p>';
+
+              document.getElementById("campo-titulares").innerHTML = htmlTitulares;
+              document.getElementById("grid-suplentes").innerHTML = htmlSuplentes;
+              document.getElementById("valor-plantilla").innerText = (valorTotal / 1000000).toFixed(1) + " M€";
+
+          } catch (err) {
+              console.error("Error crítico cargando plantilla:", err);
+              document.getElementById("campo-titulares").innerHTML = `<p class="text-red-300 text-center bg-red-900/50 p-2 rounded">Error: ${err.message}</p>`;
+          }
       }
     </script>
   </body>
